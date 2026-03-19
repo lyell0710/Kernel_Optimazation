@@ -1,3 +1,5 @@
 version,cpu_result,gpu_result,diff,latency_ms,speedup,correctness_pass
 baseline,1.67772e+07,1.67772e+07,0,347.757,1.0,true
-v0,1.67772e+07,1.67772e+07,0,0.46624,745.86,true
+v0,1.67772e+07,1.67772e+07,0,0.575104,604.71,true
+v1,1.67772e+07,1.67772e+07,0,0.568992,611.20,true
+v2,1.67772e+07,1.67772e+07,0,0.483328,719.60,true
