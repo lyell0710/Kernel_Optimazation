@@ -4,3 +4,6 @@ build/
 *.a
 *.out
 *.log
+
+.venv/
+.venv-*/
