@@ -1,12 +1,17 @@
 #include "reduce_common.h"
 #include <cmath>
 #include <cuda_runtime.h>
+#include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <vector>
+#include <string>
 
 int main()
 {
     const int N = 1 << 24;
+    const int kBenchmarkIters = 100;
+    const char* kCsvPath = "project-proof/data/benchmark_results.csv";
 
     // host
     std::vector<float> h_in(N, 1.0f);
@@ -34,119 +39,83 @@ int main()
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
 
-    // ---------------- baseline ----------------
-    float baseline_gpu = 0.0f;
-    float baseline_ms = 0.0f;
+    auto bench_reduce = [&](const std::string& name, void (*fn)(const float*, float*, int), float& gpu_out, float& mean_ms_out) {
+        // warmup
+        fn(d_in, d_out, N);
+        cudaDeviceSynchronize();
 
-    // warmup
-    reduce_baseline(d_in, d_out, N);
-    cudaDeviceSynchronize();
+        float total_ms = 0.0f;
+        for (int i = 0; i < kBenchmarkIters; ++i)
+        {
+            cudaEventRecord(start);
+            fn(d_in, d_out, N);
+            cudaEventRecord(stop);
+            cudaEventSynchronize(stop);
 
-    // timing
-    cudaEventRecord(start);
-    reduce_baseline(d_in, d_out, N);
-    cudaEventRecord(stop);
-    cudaEventSynchronize(stop);
+            float iter_ms = 0.0f;
+            cudaEventElapsedTime(&iter_ms, start, stop);
+            total_ms += iter_ms;
+        }
+        mean_ms_out = total_ms / static_cast<float>(kBenchmarkIters);
+        cudaMemcpy(&gpu_out, d_out, sizeof(float), cudaMemcpyDeviceToHost);
 
-    cudaEventElapsedTime(&baseline_ms, start, stop);
+        std::cout << "[mean over " << kBenchmarkIters << " iters] " << name << ": " << mean_ms_out << " ms" << std::endl;
+    };
 
-    // D2H
-    cudaMemcpy(&baseline_gpu, d_out, sizeof(float), cudaMemcpyDeviceToHost);
+    float baseline_gpu = 0.0f, baseline_ms = 0.0f;
+    float v0_gpu = 0.0f, v0_ms = 0.0f;
+    float v1_gpu = 0.0f, v1_ms = 0.0f;
+    float v2_gpu = 0.0f, v2_ms = 0.0f;
+    float v3_gpu = 0.0f, v3_ms = 0.0f;
+    float v4_gpu = 0.0f, v4_ms = 0.0f;
+    float v5_gpu = 0.0f, v5_ms = 0.0f;
 
-    // ---------------- v0 ----------------
-    float v0_gpu = 0.0f;
-    float v0_ms = 0.0f;
+    bench_reduce("baseline", reduce_baseline, baseline_gpu, baseline_ms);
+    bench_reduce("v0", reduce_v0, v0_gpu, v0_ms);
+    bench_reduce("v1", reduce_v1, v1_gpu, v1_ms);
+    bench_reduce("v2", reduce_v2, v2_gpu, v2_ms);
+    bench_reduce("v3", reduce_v3, v3_gpu, v3_ms);
+    bench_reduce("v4", reduce_v4, v4_gpu, v4_ms);
+    bench_reduce("v5", reduce_v5, v5_gpu, v5_ms);
 
-    // warmup
-    reduce_v0(d_in, d_out, N);
-    cudaDeviceSynchronize();
+    // overwrite CSV with the latest averaged benchmark results.
+    std::ofstream csv_out(kCsvPath, std::ios::trunc);
+    if (!csv_out.is_open())
+    {
+        std::cerr << "Failed to open CSV for writing: " << kCsvPath << std::endl;
+    }
+    else
+    {
+        csv_out << "version,cpu_result,gpu_result,diff,latency_ms,speedup,correctness_pass\n";
 
-    // timing
-    cudaEventRecord(start);
-    reduce_v0(d_in, d_out, N);
-    cudaEventRecord(stop);
-    cudaEventSynchronize(stop);
+        const float baseline_diff = std::fabs(cpu - baseline_gpu);
+        const float v0_diff = std::fabs(cpu - v0_gpu);
+        const float v1_diff = std::fabs(cpu - v1_gpu);
+        const float v2_diff = std::fabs(cpu - v2_gpu);
+        const float v3_diff = std::fabs(cpu - v3_gpu);
+        const float v4_diff = std::fabs(cpu - v4_gpu);
+        const float v5_diff = std::fabs(cpu - v5_gpu);
 
-    cudaEventElapsedTime(&v0_ms, start, stop);
+        auto write_row = [&](const char* version, float gpu_value, float diff, float latency_ms) {
+            const float speedup = baseline_ms / latency_ms;
+            const bool correct = diff < 1e-4f;
+            csv_out << std::scientific << std::setprecision(5) << version << "," << cpu << "," << gpu_value << ",";
+            csv_out << std::defaultfloat << diff << ",";
+            csv_out << std::fixed << std::setprecision(6) << latency_ms << ",";
+            csv_out << std::fixed << std::setprecision(2) << speedup << ",";
+            csv_out << (correct ? "true" : "false") << "\n";
+        };
 
-    // D2H
-    cudaMemcpy(&v0_gpu, d_out, sizeof(float), cudaMemcpyDeviceToHost);
+        write_row("baseline", baseline_gpu, baseline_diff, baseline_ms);
+        write_row("v0", v0_gpu, v0_diff, v0_ms);
+        write_row("v1", v1_gpu, v1_diff, v1_ms);
+        write_row("v2", v2_gpu, v2_diff, v2_ms);
+        write_row("v3", v3_gpu, v3_diff, v3_ms);
+        write_row("v4", v4_gpu, v4_diff, v4_ms);
+        write_row("v5", v5_gpu, v5_diff, v5_ms);
 
-    // ---------------- v1 ----------------
-    float v1_gpu = 0.0f;
-    float v1_ms = 0.0f;
-
-    // warmup
-    reduce_v1(d_in, d_out, N);
-    cudaDeviceSynchronize();
-
-    // timing
-    cudaEventRecord(start);
-    reduce_v1(d_in, d_out, N);
-    cudaEventRecord(stop);
-    cudaEventSynchronize(stop);
-
-    cudaEventElapsedTime(&v1_ms, start, stop);
-
-    // D2H
-    cudaMemcpy(&v1_gpu, d_out, sizeof(float), cudaMemcpyDeviceToHost);
-
-    // ---------------- v2 ----------------
-    float v2_gpu = 0.0f;
-    float v2_ms = 0.0f;
-
-    // warmup
-    reduce_v2(d_in, d_out, N);
-    cudaDeviceSynchronize();
-
-    // timing
-    cudaEventRecord(start);
-    reduce_v2(d_in, d_out, N);
-    cudaEventRecord(stop);
-    cudaEventSynchronize(stop);
-
-    cudaEventElapsedTime(&v2_ms, start, stop);
-
-    // D2H
-    cudaMemcpy(&v2_gpu, d_out, sizeof(float), cudaMemcpyDeviceToHost);
-
-    // ---------------- v3 ----------------
-    float v3_gpu = 0.0f;
-    float v3_ms = 0.0f;
-
-    // warmup
-    reduce_v3(d_in, d_out, N);
-    cudaDeviceSynchronize();
-
-    // timing
-    cudaEventRecord(start);
-    reduce_v3(d_in, d_out, N);
-    cudaEventRecord(stop);
-    cudaEventSynchronize(stop);
-
-    cudaEventElapsedTime(&v3_ms, start, stop);
-
-    // D2H
-    cudaMemcpy(&v3_gpu, d_out, sizeof(float), cudaMemcpyDeviceToHost);
-
-    // ---------------- v4 ----------------
-    float v4_gpu = 0.0f;
-    float v4_ms = 0.0f;
-
-    // warmup
-    reduce_v4(d_in, d_out, N);
-    cudaDeviceSynchronize();
-
-    // timing
-    cudaEventRecord(start);
-    reduce_v4(d_in, d_out, N);
-    cudaEventRecord(stop);
-    cudaEventSynchronize(stop);
-
-    cudaEventElapsedTime(&v4_ms, start, stop);
-
-    // D2H
-    cudaMemcpy(&v4_gpu, d_out, sizeof(float), cudaMemcpyDeviceToHost);
+        std::cout << "Updated CSV: " << kCsvPath << std::endl;
+    }
 
     // print
     std::cout << "CPU: " << cpu << std::endl;
@@ -174,6 +143,10 @@ int main()
     std::cout << "v4 GPU: " << v4_gpu << std::endl;
     std::cout << "v4 Diff: " << std::fabs(cpu - v4_gpu) << std::endl;
     std::cout << "[v4] " << v4_ms << " ms" << std::endl;
+
+    std::cout << "v5 GPU: " << v5_gpu << std::endl;
+    std::cout << "v5 Diff: " << std::fabs(cpu - v5_gpu) << std::endl;
+    std::cout << "[v5] " << v5_ms << " ms" << std::endl;
 
     // free GPU memory
     cudaFree(d_in);
