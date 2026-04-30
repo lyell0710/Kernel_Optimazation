@@ -7,5 +7,7 @@ void reduce_v2(const float* data, float* output, int n);
 void reduce_v3(const float* data, float* output, int n);
 void reduce_v4(const float* data, float* output, int n);
 void reduce_v5(const float* data, float* output, int n);
+void reduce_v6(const float* data, float* output, int n);
+
 
 float cpu_reduce(const float* data, int n);

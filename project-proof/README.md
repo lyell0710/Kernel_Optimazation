@@ -13,20 +13,26 @@ This proof pack records the real benchmark results of a handwritten CUDA reducti
 
 ## Experiment Setup
 - GPU: `NVIDIA GeForce RTX 4070 Laptop GPU`
-- CUDA: `13.0`
+- CUDA Runtime: `13.2` (driver reported)
+- CUDA Toolkit / nvcc: `11.5`
 - OS: `Ubuntu 24.04.3 LTS (WSL2)`
 - Input size: `1 << 24`
 - baseline: single-thread GPU reduction (`<<<1,1>>>`)
 - v0: block-level shared-memory tree reduction (`block size = 256`)
+- v6: grid-stride + two-pass reduction (`block size = 256`)
 
 ## Core Results
 - CPU: `1.67772e+07`
 - baseline GPU: `1.67772e+07`
 - baseline Diff: `0`
-- baseline latency: `347.757 ms`
-- v0 GPU: `1.67772e+07`
-- v0 Diff: `0`
-- v0 latency: `0.46624 ms`
+- baseline latency: `349.310730 ms`
+- v5 latency: `0.373608 ms`
+- v6 latency: `0.312438 ms`
+- correctness: all versions (`baseline`~`v6`) pass with `Diff = 0`
 
 ## Speedup
-- v0 vs baseline: `745.86x`
+- v6 vs baseline: `1118.02x`
+- v6 vs v5: `+16.37%`
+
+## Limitation
+- `Nsight Compute` kernel profiling is not supported on this WSL environment; all `ncu` records in `profiling/ncu/` are troubleshooting traces rather than valid profiling metrics.

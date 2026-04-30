@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 ROOT = Path(__file__).resolve().parents[2]
 CSV_PATH = ROOT / "project-proof" / "data" / "benchmark_results.csv"
 FIG_PATH = ROOT / "project-proof" / "docs" / "figures" / "correctness_check.png"
-VERSION_ORDER = ("baseline", "v0", "v1", "v2", "v3", "v4", "v5")
+VERSION_ORDER = ("baseline", "v0", "v1", "v2", "v3", "v4", "v5", "v6")
 
 
 def load_benchmark_rows():
@@ -52,27 +52,49 @@ ordered_rows = [row_by_version[v] for v in VERSION_ORDER if v in row_by_version]
 extra_rows = [row for row in rows if row["version"] not in VERSION_ORDER]
 plot_rows = ordered_rows + extra_rows
 
-cpu_value = float(plot_rows[0]["cpu_result"])
-labels = ["CPU"] + [f"{row['version']} GPU" for row in plot_rows]
-values = [cpu_value] + [float(row["gpu_result"]) for row in plot_rows]
-colors = pick_colors(len(labels))
+labels = [row["version"] for row in plot_rows]
+diff_values = [abs(float(row["diff"])) for row in plot_rows]
+correct_values = [str(row["correctness_pass"]).lower() == "true" for row in plot_rows]
+threshold = 1e-4
+pass_count = sum(correct_values)
+fail_count = len(correct_values) - pass_count
+max_diff = max(diff_values) if diff_values else 0.0
 
-plt.figure(figsize=(8.5, 4.5))
-bars = plt.bar(labels, values, color=colors)
+# 改成摘要卡片+表格，避免“全绿色柱子没信息”
+fig, ax = plt.subplots(figsize=(9.2, 3.8))
+ax.axis("off")
 
-for bar, value in zip(bars, values):
-    plt.text(
-        bar.get_x() + bar.get_width() / 2,
-        bar.get_height(),
-        f"{value:.5e}",
-        ha="center",
-        va="bottom",
-        fontsize=9,
-    )
+title = "CUDA Reduction Correctness Summary"
+summary = (
+    f"Threshold: {threshold:.0e}    "
+    f"Pass: {pass_count}/{len(correct_values)}    "
+    f"Fail: {fail_count}    "
+    f"Max Diff: {max_diff:.1e}"
+)
+ax.text(0.5, 0.93, title, ha="center", va="center", fontsize=14, weight="bold")
+ax.text(0.5, 0.84, summary, ha="center", va="center", fontsize=10, color="#333333")
 
-plt.title("CUDA Reduction Correctness Check")
-plt.ylabel("Result Value")
-plt.tight_layout()
+table_rows = [[v, f"{d:.1e}", "PASS" if ok else "FAIL"] for v, d, ok in zip(labels, diff_values, correct_values)]
+table = ax.table(
+    cellText=table_rows,
+    colLabels=["Version", "Abs Diff", "Status"],
+    cellLoc="center",
+    colLoc="center",
+    bbox=[0.08, 0.10, 0.84, 0.62],
+)
+table.auto_set_font_size(False)
+table.set_fontsize(9)
+for (r, c), cell in table.get_celld().items():
+    if r == 0:
+        cell.set_text_props(weight="bold")
+        cell.set_facecolor("#E8EEF7")
+    elif c == 2:
+        status_text = cell.get_text().get_text()
+        if status_text == "PASS":
+            cell.set_facecolor("#D9F2D9")
+        else:
+            cell.set_facecolor("#F8D7DA")
+
 FIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-plt.savefig(FIG_PATH, dpi=200)
-plt.close()
+fig.savefig(FIG_PATH, dpi=220)
+plt.close(fig)

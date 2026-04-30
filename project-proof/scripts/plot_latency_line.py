@@ -8,7 +8,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[2]
 CSV_PATH = ROOT / "project-proof" / "data" / "benchmark_results.csv"
 FIG_PATH = ROOT / "project-proof" / "docs" / "figures" / "latency_comparison_line.png"
-VERSION_ORDER = ("baseline", "v0", "v1", "v2", "v3", "v4", "v5")
+VERSION_ORDER = ("baseline", "v0", "v1", "v2", "v3", "v4", "v5", "v6")
 
 
 def load_benchmark_rows():
@@ -58,47 +58,52 @@ baseline_latency = (
 speedups = [baseline_latency / value for value in latency_ms]
 x = np.arange(len(labels))
 
-fig, (ax_all, ax_zoom) = plt.subplots(1, 2, figsize=(11, 4.5), width_ratios=[1.1, 1])
+fig, (ax_all, ax_zoom) = plt.subplots(1, 2, figsize=(11, 4.8), width_ratios=[1.15, 1.0])
 
-# Left: full trend including baseline
-ax_all.plot(x, latency_ms, marker="o", linewidth=2.2, color="#4C78A8")
+# 左图：保留全局趋势，但改成 log 轴，避免 baseline 压扁前半段
+ax_all.plot(x, latency_ms, marker="o", linewidth=2.1, color="#4C78A8")
 ax_all.set_xticks(x, labels)
-ax_all.set_title("Full Latency Trend")
+ax_all.set_yscale("log")
+ax_all.set_title("Full Latency Trend (Log Scale)")
 ax_all.set_ylabel("Latency (ms)")
 ax_all.set_xlabel("Version")
-ax_all.grid(True, axis="y", linestyle="--", alpha=0.3)
+ax_all.grid(True, axis="y", linestyle="--", alpha=0.35)
 
-for xi, value, speedup in zip(x, latency_ms, speedups):
+# 只标 baseline + 前半段，减少文字拥挤
+for i, (name, value, sp) in enumerate(zip(labels, latency_ms, speedups)):
+    if name not in {"baseline", "v0", "v1", "v2"}:
+        continue
     ax_all.annotate(
-        f"{value:.6f} ms\n({speedup:.2f}x)",
-        (xi, value),
+        f"{value:.6f} ms\n({sp:.1f}x)",
+        (i, value),
         textcoords="offset points",
         xytext=(0, 8),
         ha="center",
         fontsize=8,
     )
 
-# Right: zoom in on optimized versions only
-zoom_labels = labels[1:]
-zoom_latency = latency_ms[1:]
-zoom_speedups = speedups[1:]
-zoom_x = np.arange(len(zoom_labels))
+# 右图：保持你说“挺好”的后段放大比较（v3~v6）
+focus_labels = [v for v in ("v3", "v4", "v5", "v6") if v in row_by_version]
+focus_latency = [float(row_by_version[v]["latency_ms"]) for v in focus_labels]
+focus_speedups = [baseline_latency / v for v in focus_latency]
+focus_x = np.arange(len(focus_labels))
 
-ax_zoom.plot(zoom_x, zoom_latency, marker="o", linewidth=2.2, color="#E45756")
-ax_zoom.set_xticks(zoom_x, zoom_labels)
-ax_zoom.set_title("Zoomed Optimized Versions")
+ax_zoom.plot(focus_x, focus_latency, marker="o", linewidth=2.2, color="#E15759")
+ax_zoom.set_xticks(focus_x, focus_labels)
+ax_zoom.set_title("Zoomed Optimization Focus (v3~v6)")
 ax_zoom.set_ylabel("Latency (ms)")
 ax_zoom.set_xlabel("Version")
-ax_zoom.grid(True, axis="y", linestyle="--", alpha=0.3)
+ax_zoom.grid(True, axis="y", linestyle="--", alpha=0.35)
 
-y_min = min(zoom_latency)
-y_max = max(zoom_latency)
-padding = (y_max - y_min) * 0.25 if y_max > y_min else y_max * 0.1
-ax_zoom.set_ylim(y_min - padding, y_max + padding)
+if focus_latency:
+    y_min = min(focus_latency)
+    y_max = max(focus_latency)
+    pad = (y_max - y_min) * 0.28 if y_max > y_min else y_max * 0.1
+    ax_zoom.set_ylim(max(0.0, y_min - pad), y_max + pad)
 
-for xi, value, speedup in zip(zoom_x, zoom_latency, zoom_speedups):
+for xi, value, speedup in zip(focus_x, focus_latency, focus_speedups):
     ax_zoom.annotate(
-        f"{value:.6f} ms\n({speedup:.2f}x)",
+        f"{value:.6f} ms\n({speedup:.1f}x)",
         (xi, value),
         textcoords="offset points",
         xytext=(0, 8),
@@ -106,8 +111,17 @@ for xi, value, speedup in zip(zoom_x, zoom_latency, zoom_speedups):
         fontsize=8,
     )
 
+ax_zoom.annotate(
+    f"baseline = {baseline_latency:.3f} ms",
+    (0, focus_latency[0] if focus_latency else 0.0),
+    textcoords="offset points",
+    xytext=(5, -28),
+    ha="left",
+    fontsize=8,
+    color="#555555",
+)
+
 fig.suptitle("CUDA Reduction Latency Comparison", fontsize=13)
-fig.tight_layout()
 FIG_PATH.parent.mkdir(parents=True, exist_ok=True)
 fig.savefig(FIG_PATH, dpi=200)
 plt.close()
