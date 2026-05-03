@@ -34,10 +34,10 @@
 - 计时方式: `CUDA events`，含 warmup
 
 ## 5) 图表文件
-- `project-proof/docs/figures/latency_comparison.png`
-- `project-proof/docs/figures/latency_comparison_log.png`
-- `project-proof/docs/figures/latency_comparison_line.png`
-- `project-proof/docs/figures/correctness_check.png`
+- `project-proof/docs/figures/01-benchmark/01-latency-overview.png`
+- `project-proof/docs/figures/01-benchmark/02-latency-log.png`
+- `project-proof/docs/figures/01-benchmark/03-latency-zoom.png`
+- `project-proof/docs/figures/01-benchmark/06-correctness.png`
 
 ## 6) 简要分析
 - `baseline` 使用近似串行的 GPU 归约方式，延迟远高于优化版本。

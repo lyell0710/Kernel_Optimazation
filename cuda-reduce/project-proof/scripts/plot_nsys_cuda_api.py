@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 ROOT = Path(__file__).resolve().parents[2]
 API_CSV_PATH = ROOT / "profiling" / "nsys" / "cuda_api_sum.csv"
-FIG_PATH = ROOT / "project-proof" / "docs" / "figures" / "nsys_cuda_api_breakdown.png"
+FIG_PATH = ROOT / "project-proof" / "docs" / "figures" / "02-profiling" / "02-nsys-api-breakdown.png"
 
 
 def load_api_rows():

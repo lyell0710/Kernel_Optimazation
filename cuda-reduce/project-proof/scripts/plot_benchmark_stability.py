@@ -7,7 +7,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
 RUN_DIR = ROOT / "profiling" / "bench"
-FIG_PATH = ROOT / "project-proof" / "docs" / "figures" / "benchmark_stability.png"
+FIG_PATH = ROOT / "project-proof" / "docs" / "figures" / "01-benchmark" / "05-stability-3runs.png"
 CSV_OUT = ROOT / "project-proof" / "data" / "benchmark_stability.csv"
 VERSION_ORDER = ("baseline", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7")
 PATTERN = re.compile(r"^\[mean over 100 iters\]\s+(\w+):\s+([0-9.eE+-]+)\s+ms$")

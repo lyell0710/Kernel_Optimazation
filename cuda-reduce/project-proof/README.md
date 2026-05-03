@@ -35,4 +35,4 @@ This proof pack records the real benchmark results of a handwritten CUDA reducti
 - v6 vs v5: `+16.37%`
 
 ## Limitation
-- `Nsight Compute` kernel profiling is not supported on this WSL environment; all `ncu` records in `profiling/ncu/` are troubleshooting traces rather than valid profiling metrics.
+- `Nsight Compute` kernel profiling was unsupported in the early WSL stage; archived troubleshooting records now live in the top-level `profiling/ncu/` directory.

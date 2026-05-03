@@ -7,7 +7,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
 NCU_TEXT_DIR = ROOT / "profiling" / "ncu" / "text"
-FIG_PATH = ROOT / "project-proof" / "docs" / "figures" / "ncu_v5_v6_v7_compare.png"
+FIG_PATH = ROOT / "project-proof" / "docs" / "figures" / "02-profiling" / "01-ncu-kernel-compare.png"
 
 INPUT_FILES = {
     "v5": NCU_TEXT_DIR / "reduce_v5_once_after_v7_raw.csv",

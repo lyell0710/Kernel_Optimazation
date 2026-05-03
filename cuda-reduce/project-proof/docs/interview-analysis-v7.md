@@ -77,12 +77,12 @@
 ## 6. 图表索引（面试展示建议顺序）
 推荐按“全局 -> 局部 -> 原因”展示：
 
-1. `project-proof/docs/figures/latency_comparison.png`（总体延迟）
-2. `project-proof/docs/figures/speedup_comparison.png`（加速比）
-3. `project-proof/docs/figures/benchmark_stability.png`（稳定性）
-4. `project-proof/docs/figures/ncu_v5_v6_v7_compare.png`（kernel 指标对比）
-5. `project-proof/docs/figures/nsys_cuda_api_breakdown.png`（API 开销证据）
-6. `project-proof/docs/figures/correctness_check.png`（正确性闭环）
+1. `project-proof/docs/figures/01-benchmark/01-latency-overview.png`（总体延迟）
+2. `project-proof/docs/figures/01-benchmark/04-speedup-vs-baseline.png`（加速比）
+3. `project-proof/docs/figures/01-benchmark/05-stability-3runs.png`（稳定性）
+4. `project-proof/docs/figures/02-profiling/01-ncu-kernel-compare.png`（kernel 指标对比）
+5. `project-proof/docs/figures/02-profiling/02-nsys-api-breakdown.png`（API 开销证据）
+6. `project-proof/docs/figures/01-benchmark/06-correctness.png`（正确性闭环）
 
 ---
 

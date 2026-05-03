@@ -1,0 +1,38 @@
+[mean over 100 iters] baseline: 347.856 ms
+[mean over 100 iters] v0: 0.388015 ms
+[mean over 100 iters] v1: 0.405845 ms
+[mean over 100 iters] v2: 0.437605 ms
+[mean over 100 iters] v3: 0.291614 ms
+[mean over 100 iters] v4: 0.290927 ms
+[mean over 100 iters] v5: 0.290411 ms
+[mean over 100 iters] v6: 1.59245 ms
+[mean over 100 iters] v7: 0.273421 ms
+Updated CSV: project-proof/data/benchmark_results.csv
+CPU: 1.67772e+07
+baseline GPU: 1.67772e+07
+baseline Diff: 0
+[baseline] 347.856 ms
+v0 GPU: 1.67772e+07
+v0 Diff: 0
+[v0] 0.388015 ms
+v1 GPU: 1.67772e+07
+v1 Diff: 0
+[v1] 0.405845 ms
+v2 GPU: 1.67772e+07
+v2 Diff: 0
+[v2] 0.437605 ms
+v3 GPU: 1.67772e+07
+v3 Diff: 0
+[v3] 0.291614 ms
+v4 GPU: 1.67772e+07
+v4 Diff: 0
+[v4] 0.290927 ms
+v5 GPU: 1.67772e+07
+v5 Diff: 0
+[v5] 0.290411 ms
+v6 GPU: 1.67772e+07
+v6 Diff: 0
+[v6] 1.59245 ms
+v7 GPU: 1.67772e+07
+v7 Diff: 0
+[v7] 0.273421 ms
