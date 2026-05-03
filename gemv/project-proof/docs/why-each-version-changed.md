@@ -15,6 +15,21 @@
 - 一个 block 负责一行。
 - 每个线程处理该行的一部分列，最后做 block 内归约。
 
+### 对应代码（关键片段）
+```cpp
+template <int blockSize>
+__global__ void gemv_v0_kernel(const float* mat, const float* vec, float* out, int rows, int cols) {
+    __shared__ float smem[blockSize];
+    int row = blockIdx.x, tid = threadIdx.x;
+    float sum = 0.0f;
+    for (int c = tid; c < cols; c += blockSize) {
+        sum += mat[row * cols + c] * vec[c];
+    }
+    smem[tid] = sum;
+    // ... block reduction
+}
+```
+
 ### 预期收益
 - 从“单线程串行”变成“block 级并行”。
 - 延迟通常会出现数量级下降。
@@ -30,6 +45,16 @@
 - 每线程改成 2 元素展开（unroll-2）。
 - 输入输出指针使用 `__restrict__`，减轻编译器别名保守假设。
 
+### 对应代码（关键片段）
+```cpp
+for (int c = tid * 2; c < cols; c += blockSize * 2) {
+    sum += mat[row_offset + c] * vec[c];
+    if (c + 1 < cols) {
+        sum += mat[row_offset + c + 1] * vec[c + 1];
+    }
+}
+```
+
 ### 预期收益
 - 降低指令/控制开销，提升 ALU 和访存流水效率。
 
@@ -43,6 +68,19 @@
 ### 本版（v2）怎么改
 - 使用 `float4` 向量化读取 `A` 和 `x`。
 - 尾部不足 4 元素时回退标量路径，确保边界正确。
+
+### 对应代码（关键片段）
+```cpp
+for (int c = tid * 4; c < cols; c += blockSize * 4) {
+    if (c + 3 < cols) {
+        float4 a = reinterpret_cast<const float4*>(mat + row_offset + c)[0];
+        float4 x = reinterpret_cast<const float4*>(vec + c)[0];
+        sum += a.x * x.x + a.y * x.y + a.z * x.z + a.w * x.w;
+    } else {
+        for (int k = 0; k < 4 && c + k < cols; ++k) sum += mat[row_offset + c + k] * vec[c + k];
+    }
+}
+```
 
 ### 预期收益
 - memory coalescing 更好，访存指令更少。
@@ -58,6 +96,19 @@
 - 一行映射到一个 warp。
 - 用 `__shfl_down_sync` 完成 warp 内归约，避免 block 级同步。
 
+### 对应代码（关键片段）
+```cpp
+__inline__ __device__ float warp_reduce_sum(float v) {
+    for (int offset = 16; offset > 0; offset >>= 1) {
+        v += __shfl_down_sync(0xffffffff, v, offset);
+    }
+    return v;
+}
+
+int row = blockIdx.x * blockDim.y + threadIdx.y;
+for (int c = threadIdx.x; c < cols; c += 32) sum += mat[row_offset + c] * vec[c];
+```
+
 ### 预期收益
 - 减少同步等待，降低归约尾部开销。
 
@@ -71,6 +122,19 @@
 ### 本版（v4）怎么改
 - 一个 block 同时处理多行，共享 `x` 的 tile 到 shared memory。
 - 尝试用“跨行复用 x”换取更少 global 读取。
+
+### 对应代码（关键片段）
+```cpp
+__shared__ float smem_x[blockSize];
+int row = blockIdx.x * rowsPerBlock + threadIdx.y;
+for (int base = 0; base < cols; base += blockSize) {
+    int c = base + threadIdx.x;
+    smem_x[threadIdx.x] = (c < cols) ? vec[c] : 0.0f;
+    __syncthreads();
+    if (c < cols) local += mat[row_offset + c] * smem_x[threadIdx.x];
+    __syncthreads();
+}
+```
 
 ### 为什么这版在当前配置下反而慢
 - 共享内存/同步开销增加，抵消了复用收益。

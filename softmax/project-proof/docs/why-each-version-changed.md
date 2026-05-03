@@ -14,6 +14,24 @@
 - 每个线程分担多列元素
 - 两次 block reduction（max 和 sum）替代串行循环
 
+### 对应代码（关键片段）
+```cpp
+template <int blockSize>
+__global__ void softmax_v0_kernel(const float* input, float* output, int rows, int cols) {
+    __shared__ float smem[blockSize];
+    const int row = blockIdx.x;
+    const int tid = threadIdx.x;
+    const int row_offset = row * cols;
+
+    float thread_max = -1.0e20f;
+    for (int c = tid; c < cols; c += blockSize) {
+        thread_max = fmaxf(thread_max, input[row_offset + c]);
+    }
+    const float row_max = block_reduce_max_v0<blockSize>(thread_max, smem, tid);
+    // ... sum reduction + normalize writeback
+}
+```
+
 ### 为什么先这么改
 - softmax 的主干是“找最大值 + 求指数和 + 归一化”
 - v0 先把主干全部并行化，后续优化都在这条路径上增量改进
@@ -31,6 +49,20 @@
 - 输入输出加 `__restrict__`
 - 缓存 `row_offset`，减少重复地址计算
 
+### 对应代码（关键片段）
+```cpp
+if (((tid & ((stride << 1) - 1)) == 0) && (tid + stride) < blockSize) {
+    smem[tid] = fmaxf(smem[tid], smem[tid + stride]);
+}
+
+__global__ void softmax_v1_kernel(const float* __restrict__ input,
+                                  float* __restrict__ output,
+                                  int rows, int cols) {
+    const int row_offset = blockIdx.x * cols;
+    // ...
+}
+```
+
 ### 为什么这样改
 - 结构不变，便于 A/B 对照
 - 对正确性影响极小，但能减少一些无谓 ALU 与编译器保守假设
@@ -46,6 +78,16 @@
 ### v2 的核心改动
 - 归约写法改成 `for (s = blockSize/2; s > 0; s >>= 1)`
 - `tid < s` 线程参与，访问 `smem[tid]` 与 `smem[tid+s]`
+
+### 对应代码（关键片段）
+```cpp
+for (int stride = blockSize >> 1; stride > 0; stride >>= 1) {
+    if (tid < stride) {
+        smem[tid] += smem[tid + stride];
+    }
+    __syncthreads();
+}
+```
 
 ### 为什么这样改
 - 访问模式更连续、更容易被硬件高效执行
@@ -64,6 +106,21 @@
 - 每线程每次处理 4 个元素（pack=4）
 - 尾部不足 4 元素时回退标量路径，保证边界安全
 
+### 对应代码（关键片段）
+```cpp
+for (int c = tid * packSize; c < cols; c += blockSize * packSize) {
+    if (c + packSize - 1 < cols) {
+        const float4 v = reinterpret_cast<const float4*>(input + row_offset + c)[0];
+        thread_sum += expf(v.x - row_max) + expf(v.y - row_max)
+                    + expf(v.z - row_max) + expf(v.w - row_max);
+    } else {
+        for (int k = 0; k < packSize && (c + k) < cols; ++k) {
+            thread_sum += expf(input[row_offset + c + k] - row_max);
+        }
+    }
+}
+```
+
 ### 为什么这样改
 - 对行长较大的 softmax，访存吞吐常是关键瓶颈
 - 向量化通常能显著减少访存开销与指令开销
@@ -80,6 +137,22 @@
 - 先做 block 级归约到 `s > 32`
 - 最后一个 warp 改为 `__shfl_down_sync` 做寄存器归约
 - max/sum 都复用同一套 warp 归约思路
+
+### 对应代码（关键片段）
+```cpp
+template <typename Op>
+__device__ float warp_reduce(float value, Op op) {
+    for (int offset = 16; offset > 0; offset >>= 1) {
+        value = op(value, __shfl_down_sync(0xffffffff, value, offset));
+    }
+    return value;
+}
+
+for (int stride = blockSize >> 1; stride > 32; stride >>= 1) {
+    if (tid < stride) smem[tid] = op(smem[tid], smem[tid + stride]);
+    __syncthreads();
+}
+```
 
 ### 为什么这样改
 - warp 内本来就天然同步，不需要 block 级栅栏

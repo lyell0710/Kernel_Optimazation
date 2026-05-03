@@ -13,6 +13,16 @@
 ### 本版（v0）怎么改
 - 改成 grid-stride 并行，一线程处理多个元素。
 
+### 对应代码（关键片段）
+```cpp
+int gid = blockIdx.x * blockDim.x + threadIdx.x;
+int step = blockDim.x * gridDim.x;
+for (int i = gid; i < total; i += step) {
+    int c = i / hw;
+    output[i] = quant_one(input[i], scales[c]);
+}
+```
+
 ### 预期收益
 - 吞吐数量级提升，是最关键的一步。
 
@@ -26,6 +36,18 @@
 ### 本版（v1）怎么改
 - 每线程一次处理 2 元素（unroll-2）。
 
+### 对应代码（关键片段）
+```cpp
+for (int i = gid * 2; i < total; i += step * 2) {
+    int c0 = i / hw;
+    output[i] = quant_one(input[i], scales[c0]);
+    if (i + 1 < total) {
+        int c1 = (i + 1) / hw;
+        output[i + 1] = quant_one(input[i + 1], scales[c1]);
+    }
+}
+```
+
 ### 预期收益
 - 降低控制流和地址计算开销。
 
@@ -38,6 +60,20 @@
 
 ### 本版（v2）怎么改
 - 每线程处理 4 元素（unroll-4）。
+
+### 对应代码（关键片段）
+```cpp
+for (int base = gid * 4; base < total; base += step * 4) {
+    #pragma unroll
+    for (int k = 0; k < 4; ++k) {
+        int i = base + k;
+        if (i < total) {
+            int c = i / hw;
+            output[i] = quant_one(input[i], scales[c]);
+        }
+    }
+}
+```
 
 ### 预期收益
 - 进一步提高指令吞吐与流水线利用率。
@@ -53,6 +89,17 @@
 - block 与 channel 绑定（一块一 channel）。
 - 每个 block 对应 `scale` 只读取一次到寄存器复用。
 
+### 对应代码（关键片段）
+```cpp
+int c = blockIdx.x;
+float s = scales[c];
+int base = c * hw;
+for (int i = threadIdx.x; i < hw; i += blockDim.x) {
+    int idx = base + i;
+    output[idx] = quant_one(input[idx], s);
+}
+```
+
 ### 预期收益
 - 减少无效 scale 访存，降低 memory traffic。
 
@@ -65,6 +112,21 @@
 
 ### 本版（v4）怎么改
 - `float4` 向量化读取输入，`char4` 向量化写回输出。
+
+### 对应代码（关键片段）
+```cpp
+for (int i = tid * 4; i < hw; i += blockDim.x * 4) {
+    if (i + 3 < hw) {
+        float4 v = reinterpret_cast<const float4*>(input + base + i)[0];
+        char4 q;
+        q.x = static_cast<signed char>(quant_one(v.x, s));
+        q.y = static_cast<signed char>(quant_one(v.y, s));
+        q.z = static_cast<signed char>(quant_one(v.z, s));
+        q.w = static_cast<signed char>(quant_one(v.w, s));
+        reinterpret_cast<char4*>(output + base + i)[0] = q;
+    }
+}
+```
 
 ### 预期收益
 - 连续访存效率提升，进一步降低延迟。
