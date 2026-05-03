@@ -1,55 +1,54 @@
 # 为什么每版这么改（softmax v0 ~ v4）
 
-本文档对应 `src/softmax_v0.cu ~ src/softmax_v4.cu` 的设计动机，重点解释“为什么改”，不是只列“改了什么”。
+本文档对应 `src/softmax_v0.cu ~ src/softmax_v4.cu`，统一使用同一分析模板：
+**上一版瓶颈 -> 本版改动 -> 关键代码 -> 预期收益 -> NCU 观察点**。
 
-## baseline -> v0：先把串行流程并行化
+## baseline -> v0：并行化主流程
 
-### baseline 的问题
-- 一行只用一个线程顺序执行 max/sum/normalize
-- GPU 大量线程资源闲置
-- 只能当正确性对照，几乎没有性能价值
+### 上一版瓶颈
+- 一行只有一个线程顺序执行 max/sum/normalize，GPU 资源严重闲置。
 
-### v0 的核心改动
-- 一个 block 负责一行
-- 每个线程分担多列元素
-- 两次 block reduction（max 和 sum）替代串行循环
+### 本版改动
+- 一个 block 负责一行。
+- 每线程处理该行多个列元素。
+- 行内执行两次 block reduction（max + sum）。
 
-### 对应代码（关键片段）
+### 关键代码
 ```cpp
 template <int blockSize>
 __global__ void softmax_v0_kernel(const float* input, float* output, int rows, int cols) {
     __shared__ float smem[blockSize];
-    const int row = blockIdx.x;
-    const int tid = threadIdx.x;
-    const int row_offset = row * cols;
-
+    int row = blockIdx.x, tid = threadIdx.x;
+    int row_offset = row * cols;
     float thread_max = -1.0e20f;
     for (int c = tid; c < cols; c += blockSize) {
         thread_max = fmaxf(thread_max, input[row_offset + c]);
     }
-    const float row_max = block_reduce_max_v0<blockSize>(thread_max, smem, tid);
-    // ... sum reduction + normalize writeback
+    float row_max = block_reduce_max_v0<blockSize>(thread_max, smem, tid);
+    // ... block_reduce_sum_v0 + normalize
 }
 ```
 
-### 为什么先这么改
-- softmax 的主干是“找最大值 + 求指数和 + 归一化”
-- v0 先把主干全部并行化，后续优化都在这条路径上增量改进
+### 预期收益
+- 从串行一行升级为 block 级并行，通常获得数量级加速。
+
+### NCU 观察点
+- occupancy 应显著提升，SM/DRAM 利用率进入正常区间。
 
 ---
 
-## v0 -> v1：低风险微优化，先拿确定性收益
+## v0 -> v1：低风险微优化
 
-### v0 的可优化点
-- 交错归约里有 `%` 判断
-- 地址计算可进一步简化
+### 上一版瓶颈
+- 交错归约中 `%` 判断开销偏高。
+- 地址重复计算和别名保守假设影响编译器优化。
 
-### v1 的核心改动
-- `%` 判断改为位运算判断
-- 输入输出加 `__restrict__`
-- 缓存 `row_offset`，减少重复地址计算
+### 本版改动
+- `%` 分支改位运算判断。
+- 输入输出指针加 `__restrict__`。
+- 缓存 `row_offset`。
 
-### 对应代码（关键片段）
+### 关键代码
 ```cpp
 if (((tid & ((stride << 1) - 1)) == 0) && (tid + stride) < blockSize) {
     smem[tid] = fmaxf(smem[tid], smem[tid + stride]);
@@ -58,28 +57,27 @@ if (((tid & ((stride << 1) - 1)) == 0) && (tid + stride) < blockSize) {
 __global__ void softmax_v1_kernel(const float* __restrict__ input,
                                   float* __restrict__ output,
                                   int rows, int cols) {
-    const int row_offset = blockIdx.x * cols;
-    // ...
+    int row_offset = blockIdx.x * cols;
 }
 ```
 
-### 为什么这样改
-- 结构不变，便于 A/B 对照
-- 对正确性影响极小，但能减少一些无谓 ALU 与编译器保守假设
+### 预期收益
+- 小幅降低 ALU/控制开销，收益稳定但不会特别大。
+
+### NCU 观察点
+- 指令数与时延相对 v0 小幅下降，瓶颈类型不发生大变化。
 
 ---
 
-## v1 -> v2：统一成对半归约，规整访问模式
+## v1 -> v2：对半归约重排
 
-### v1 的问题
-- 交错归约在 shared-memory 访问上不够规整
-- 两次归约（max/sum）都有同样问题
+### 上一版瓶颈
+- 交错归约访存模式不够规整，两次归约都受影响。
 
-### v2 的核心改动
-- 归约写法改成 `for (s = blockSize/2; s > 0; s >>= 1)`
-- `tid < s` 线程参与，访问 `smem[tid]` 与 `smem[tid+s]`
+### 本版改动
+- 统一采用 `for (stride = blockSize/2; stride > 0; stride >>= 1)` 的对半归约。
 
-### 对应代码（关键片段）
+### 关键代码
 ```cpp
 for (int stride = blockSize >> 1; stride > 0; stride >>= 1) {
     if (tid < stride) {
@@ -89,24 +87,24 @@ for (int stride = blockSize >> 1; stride > 0; stride >>= 1) {
 }
 ```
 
-### 为什么这样改
-- 访问模式更连续、更容易被硬件高效执行
-- 为后续 warp 尾归约做铺垫（v4）
+### 预期收益
+- shared memory 访问更规整，为后续 warp 归约打基础。
+
+### NCU 观察点
+- 指令数略降，SM 利用率更稳定。
 
 ---
 
-## v2 -> v3：向量化读写，提升访存吞吐
+## v2 -> v3：float4 向量化
 
-### v2 的问题
-- 仍以标量元素为单位读写
-- 指令条数和访存事务数较高
+### 上一版瓶颈
+- 仍是标量读写，访存事务和指令条数偏高。
 
-### v3 的核心改动
-- 使用 `float4` 向量化读取/写回
-- 每线程每次处理 4 个元素（pack=4）
-- 尾部不足 4 元素时回退标量路径，保证边界安全
+### 本版改动
+- `float4` 向量化加载/写回。
+- 每线程处理 4 元素，尾部不足 4 个走标量回退。
 
-### 对应代码（关键片段）
+### 关键代码
 ```cpp
 for (int c = tid * packSize; c < cols; c += blockSize * packSize) {
     if (c + packSize - 1 < cols) {
@@ -121,24 +119,24 @@ for (int c = tid * packSize; c < cols; c += blockSize * packSize) {
 }
 ```
 
-### 为什么这样改
-- 对行长较大的 softmax，访存吞吐常是关键瓶颈
-- 向量化通常能显著减少访存开销与指令开销
+### 预期收益
+- 访存吞吐提升，尤其在 `cols` 较大时效果明显。
+
+### NCU 观察点
+- DRAM 占比上升，瓶颈从 compute 向 compute/memory 混合转移。
 
 ---
 
-## v3 -> v4：归约尾部 warp 化，减少同步成本
+## v3 -> v4：warp 尾归约
 
-### v3 的问题
-- block reduction 全程依赖 `__syncthreads()`
-- 当只剩 1 个 warp 时，整块同步开销显得浪费
+### 上一版瓶颈
+- block reduction 全程依赖 `__syncthreads()`，尾部一个 warp 时同步浪费明显。
 
-### v4 的核心改动
-- 先做 block 级归约到 `s > 32`
-- 最后一个 warp 改为 `__shfl_down_sync` 做寄存器归约
-- max/sum 都复用同一套 warp 归约思路
+### 本版改动
+- block 归约只做到 `s > 32`。
+- 尾部切换为 `__shfl_down_sync` warp 归约（max/sum 复用一套逻辑）。
 
-### 对应代码（关键片段）
+### 关键代码
 ```cpp
 template <typename Op>
 __device__ float warp_reduce(float value, Op op) {
@@ -154,39 +152,29 @@ for (int stride = blockSize >> 1; stride > 32; stride >>= 1) {
 }
 ```
 
-### 为什么这样改
-- warp 内本来就天然同步，不需要 block 级栅栏
-- softmax 每行要做两次归约，尾部优化会被放大
+### 预期收益
+- 减少同步开销，softmax 双归约场景下收益会被放大。
+
+### NCU 观察点
+- 指令数继续下降，最终版本更容易落到 memory-bound。
 
 ---
 
-## 结果解读建议
+## 当前实测快照（rows=1024, cols=1024）
 
-- 如果 `v1` 提升不明显：正常，v1 本来是“小修”
-- 如果 `v3` 明显快：通常说明你的输入规模下受益于向量化访存
-- 如果 `v4` 比 `v3` 再快：说明尾部同步优化命中瓶颈
-- 如果某版变慢：先看正确性，再看 launch 配置与输入规模是否匹配
+- baseline: `0.322205 ms`（`1.00x`）
+- v0: `0.026267 ms`（`12.27x`）
+- v1: `0.026240 ms`（`12.28x`）
+- v2: `0.025930 ms`（`12.43x`）
+- v3: `0.023244 ms`（`13.86x`）
+- v4: `0.016554 ms`（`19.46x`，当前最优）
+- 正确性：全部 `correctness_pass=true`，误差约 `1e-9 ~ 1e-8`
 
-## 当前一组实测快照（rows=1024, cols=1024）
+## NCU 实测结论（同一轮 profile 均值）
 
-- baseline: `0.322205 ms`, speedup `1.00x`
-- v0: `0.026267 ms`, speedup `12.27x`
-- v1: `0.026240 ms`, speedup `12.28x`
-- v2: `0.025930 ms`, speedup `12.43x`
-- v3: `0.023244 ms`, speedup `13.86x`
-- v4: `0.016554 ms`, speedup `19.46x`
-- 正确性：所有版本 `correctness_pass=true`，最大误差约 `1e-9 ~ 1e-8`
-
-## NCU 实测结论（同一轮 profile 的均值）
-
-- baseline: `SM 51.77% / DRAM 5.00% / OCC 37.07%`，属于**并行度不足 + latency/mixed**，说明单线程实现主要受执行串行化限制。
-- v0: `SM 75.55% / DRAM 55.26% / OCC 91.02%`，进入**高并行 compute-dominant**区间，说明并行化主框架已建立。
-- v1: `SM 76.28% / DRAM 52.20% / OCC 91.00%`，与 v0 同类，属于**小优化**，主要是细节抛光。
-- v2: `SM 77.35% / DRAM 52.93% / OCC 90.72%`，仍是**compute-dominant**，说明归约访问模式优化减少了额外开销。
-- v3: `SM 70.00% / DRAM 62.34% / OCC 91.11%`，处于**compute/memory 混合瓶颈**，向量化后带宽占比明显上升。
-- v4: `SM 45.27% / DRAM 78.56% / OCC 88.98%`，转为**memory-bound**，与“尾部 warp 化后更快”的观测一致。
-
-### 和版本演进的对应关系
-- `baseline -> v0`：关键收益来自并行度，NCU 上体现在 occupancy 大幅提升。
-- `v2 -> v3`：向量化把瓶颈推向带宽侧，是典型阶段性变化。
-- `v3 -> v4`：最终最快版本落在 memory-bound，后续优化应优先压 global traffic（如进一步融合/减少读写轮次）。
+- baseline: `SM 51.77% / DRAM 5.00% / OCC 37.07%`（并行度不足 + latency/mixed）
+- v0: `SM 75.55% / DRAM 55.26% / OCC 91.02%`（compute-dominant）
+- v1: `SM 76.28% / DRAM 52.20% / OCC 91.00%`（compute-dominant）
+- v2: `SM 77.35% / DRAM 52.93% / OCC 90.72%`（compute-dominant）
+- v3: `SM 70.00% / DRAM 62.34% / OCC 91.11%`（compute/memory 混合）
+- v4: `SM 45.27% / DRAM 78.56% / OCC 88.98%`（memory-bound）
