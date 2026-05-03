@@ -8,7 +8,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[2]
 CSV_PATH = ROOT / "project-proof" / "data" / "benchmark_results.csv"
 FIG_PATH = ROOT / "project-proof" / "docs" / "figures" / "latency_comparison.png"
-VERSION_ORDER = ("baseline", "v0", "v1", "v2", "v3", "v4", "v5", "v6")
+VERSION_ORDER = ("baseline", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7")
 
 
 def load_benchmark_rows():
@@ -65,7 +65,7 @@ baseline_latency = (
 speedups = [baseline_latency / value for value in latency_ms]
 
 early_versions = ["baseline", "v0", "v1", "v2"]
-late_versions = ["v3", "v4", "v5", "v6"]
+late_versions = ["v3", "v4", "v5", "v6", "v7"]
 
 early_rows = [row_by_version[v] for v in early_versions if v in row_by_version]
 late_rows = [row_by_version[v] for v in late_versions if v in row_by_version]
@@ -102,7 +102,7 @@ ax_early.text(
 late_labels = [r["version"] for r in late_rows]
 late_latency = [float(r["latency_ms"]) for r in late_rows]
 late_x = np.arange(len(late_labels))
-late_bars = ax_late.bar(late_x, late_latency, color=["#4C78A8", "#59A14F", "#F28E2B", "#E15759"])
+late_bars = ax_late.bar(late_x, late_latency, color=pick_colors(len(late_labels)))
 ax_late.set_xticks(late_x, late_labels)
 ax_late.set_title("Optimization Focus: v3 ~ v6")
 ax_late.set_ylabel("Latency (ms)")

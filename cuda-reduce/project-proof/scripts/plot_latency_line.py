@@ -8,7 +8,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[2]
 CSV_PATH = ROOT / "project-proof" / "data" / "benchmark_results.csv"
 FIG_PATH = ROOT / "project-proof" / "docs" / "figures" / "latency_comparison_line.png"
-VERSION_ORDER = ("baseline", "v0", "v1", "v2", "v3", "v4", "v5", "v6")
+VERSION_ORDER = ("baseline", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7")
 
 
 def load_benchmark_rows():
@@ -82,15 +82,15 @@ for i, (name, value, sp) in enumerate(zip(labels, latency_ms, speedups)):
         fontsize=8,
     )
 
-# 右图：保持你说“挺好”的后段放大比较（v3~v6）
-focus_labels = [v for v in ("v3", "v4", "v5", "v6") if v in row_by_version]
+# 右图：后段放大比较（v3~v7）
+focus_labels = [v for v in ("v3", "v4", "v5", "v6", "v7") if v in row_by_version]
 focus_latency = [float(row_by_version[v]["latency_ms"]) for v in focus_labels]
 focus_speedups = [baseline_latency / v for v in focus_latency]
 focus_x = np.arange(len(focus_labels))
 
 ax_zoom.plot(focus_x, focus_latency, marker="o", linewidth=2.2, color="#E15759")
 ax_zoom.set_xticks(focus_x, focus_labels)
-ax_zoom.set_title("Zoomed Optimization Focus (v3~v6)")
+ax_zoom.set_title("Zoomed Optimization Focus (v3~v7)")
 ax_zoom.set_ylabel("Latency (ms)")
 ax_zoom.set_xlabel("Version")
 ax_zoom.grid(True, axis="y", linestyle="--", alpha=0.35)

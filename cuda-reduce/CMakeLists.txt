@@ -16,5 +16,6 @@ add_executable(reduce_bench
     src/reduce_v4.cu
     src/reduce_v5.cu
     src/reduce_v6.cu
+    src/reduce_v7.cu
     src/reduce_reference.cpp
 )
