@@ -1,5 +1,6 @@
 #include "quantize_common.h"
 #include <cstdlib>
+#include <cstring>
 #include <cmath>
 #include <cstdint>
 #include <cuda_runtime.h>
@@ -110,6 +111,56 @@ int main()
         std::cout << "[" << name << "] " << (exact_pass ? "PASS" : "FAIL") << ", mean_latency=" << mean_ms
                   << " ms, max_abs_err=" << max_abs_err << std::endl;
     };
+
+    if (const char* profile_only = std::getenv("QUANTIZE_PROFILE_ONLY"))
+    {
+        if (profile_only[0] != '\0')
+        {
+            float mean_ms = 0.0f, err = 0.0f;
+            bool pass = false;
+            if (std::strcmp(profile_only, "baseline") == 0)
+            {
+                run_and_check("baseline", quantize_baseline, mean_ms, err, pass);
+            }
+            else if (std::strcmp(profile_only, "v0") == 0)
+            {
+                run_and_check("v0", quantize_v0, mean_ms, err, pass);
+            }
+            else if (std::strcmp(profile_only, "v1") == 0)
+            {
+                run_and_check("v1", quantize_v1, mean_ms, err, pass);
+            }
+            else if (std::strcmp(profile_only, "v2") == 0)
+            {
+                run_and_check("v2", quantize_v2, mean_ms, err, pass);
+            }
+            else if (std::strcmp(profile_only, "v3") == 0)
+            {
+                run_and_check("v3", quantize_v3, mean_ms, err, pass);
+            }
+            else if (std::strcmp(profile_only, "v4") == 0)
+            {
+                run_and_check("v4", quantize_v4, mean_ms, err, pass);
+            }
+            else
+            {
+                std::cerr << "QUANTIZE_PROFILE_ONLY must be baseline or v0..v4 (got: " << profile_only << ")\n";
+                cudaEventDestroy(start);
+                cudaEventDestroy(stop);
+                cudaFree(d_in);
+                cudaFree(d_scales);
+                cudaFree(d_out);
+                return 2;
+            }
+            (void)pass;
+            cudaEventDestroy(start);
+            cudaEventDestroy(stop);
+            cudaFree(d_in);
+            cudaFree(d_scales);
+            cudaFree(d_out);
+            return 0;
+        }
+    }
 
     float baseline_ms = 0.0f, baseline_err = 0.0f;
     float v0_ms = 0.0f, v0_err = 0.0f;

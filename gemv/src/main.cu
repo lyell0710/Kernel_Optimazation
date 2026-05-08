@@ -1,5 +1,6 @@
 #include "gemv_common.h"
 #include <cstdlib>
+#include <cstring>
 #include <cmath>
 #include <cuda_runtime.h>
 #include <fstream>
@@ -100,6 +101,54 @@ int main()
         std::cout << "[" << name << "] " << (ok ? "PASS" : "FAIL") << ", mean_latency=" << mean_ms << " ms, max_diff=" << max_diff
                   << std::endl;
     };
+
+    if (const char* profile_only = std::getenv("GEMV_PROFILE_ONLY"))
+    {
+        if (profile_only[0] != '\0')
+        {
+            float mean_ms = 0.0f, max_diff = 0.0f;
+            if (std::strcmp(profile_only, "baseline") == 0)
+            {
+                run_and_check("baseline", gemv_baseline, mean_ms, max_diff);
+            }
+            else if (std::strcmp(profile_only, "v0") == 0)
+            {
+                run_and_check("v0", gemv_v0, mean_ms, max_diff);
+            }
+            else if (std::strcmp(profile_only, "v1") == 0)
+            {
+                run_and_check("v1", gemv_v1, mean_ms, max_diff);
+            }
+            else if (std::strcmp(profile_only, "v2") == 0)
+            {
+                run_and_check("v2", gemv_v2, mean_ms, max_diff);
+            }
+            else if (std::strcmp(profile_only, "v3") == 0)
+            {
+                run_and_check("v3", gemv_v3, mean_ms, max_diff);
+            }
+            else if (std::strcmp(profile_only, "v4") == 0)
+            {
+                run_and_check("v4", gemv_v4, mean_ms, max_diff);
+            }
+            else
+            {
+                std::cerr << "GEMV_PROFILE_ONLY must be baseline or v0..v4 (got: " << profile_only << ")\n";
+                cudaEventDestroy(start);
+                cudaEventDestroy(stop);
+                cudaFree(d_mat);
+                cudaFree(d_vec);
+                cudaFree(d_out);
+                return 2;
+            }
+            cudaEventDestroy(start);
+            cudaEventDestroy(stop);
+            cudaFree(d_mat);
+            cudaFree(d_vec);
+            cudaFree(d_out);
+            return 0;
+        }
+    }
 
     float baseline_ms = 0.0f, baseline_diff = 0.0f;
     float v0_ms = 0.0f, v0_diff = 0.0f;

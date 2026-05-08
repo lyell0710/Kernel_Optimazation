@@ -1,0 +1,16 @@
+# Shared Nsight Compute knobs for Kernel_Optimazation/*/project-proof/scripts/profile_ncu.sh
+# shellcheck shell=bash
+
+NCU_PROFILE_SECTIONS=(
+  SpeedOfLight
+  LaunchStats
+  Occupancy
+  WarpStateStats
+  MemoryWorkloadAnalysis
+  MemoryWorkloadAnalysis_Chart
+  MemoryWorkloadAnalysis_Tables
+  SchedulerStats
+)
+
+# Extended CSV metrics: throughput, occupancy 代理, 合并/ bank / L2 / 寄存器&smem 代理, warp stall 分解
+NCU_CSV_METRICS="sm__throughput.avg.pct_of_peak_sustained_elapsed,dram__throughput.avg.pct_of_peak_sustained_elapsed,smsp__warps_active.avg.pct_of_peak_sustained_active,smsp__inst_executed.sum,lts__t_request_hit_rate,l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum,l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum,l1tex__average_t_sectors_per_request_pipe_lsu_mem_global_op_ld,tpc__average_registers_per_thread,sm__sass_data_bytes_mem_shared,smsp__warp_issue_stalled_long_scoreboard_per_warp_active,smsp__warp_issue_stalled_long_scoreboard_pipe_l1tex_per_warp_active,smsp__warp_issue_stalled_barrier_per_warp_active,smsp__warp_issue_stalled_membar_per_warp_active,smsp__warp_issue_stalled_short_scoreboard_per_warp_active"

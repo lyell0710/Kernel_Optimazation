@@ -25,11 +25,16 @@ python project-proof/scripts/plot_speedup.py
 python project-proof/scripts/plot_correctness.py
 ```
 
-## NCU 关键指标采集
+## NCU（完整 Section + 每版本独立 `.ncu-rep`）
 ```bash
 bash project-proof/scripts/profile_ncu.sh
+RUN_NCU_CSV=1 bash project-proof/scripts/profile_ncu.sh   # 需要 plot / 扩展 CSV 时
 python project-proof/scripts/plot_ncu_summary.py
 ```
+
+生成 `project-proof/profiling/ncu/gemv_<tag>_profile.ncu-rep`（baseline、v0–v4）。Section 列表见 `Kernel_Optimazation/scripts/ncu_metrics.inc.sh`。采集时通过环境变量 **`GEMV_PROFILE_ONLY`** 仅跑单版本（由脚本自动设置）。
+
+打包拷到 Mac：在仓库根目录 `bash scripts/pack_ncu_reps_for_mac.sh`，再按脚本提示 `scp` 各 `artifacts/ncu_for_mac/*.tar.gz`。
 
 输出目录：`project-proof/profiling/ncu/`
 图表目录：`project-proof/docs/figures/02-profiling/`

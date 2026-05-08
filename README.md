@@ -30,3 +30,15 @@ Run NCU profiling for all projects:
 bash scripts/run_ncu_all.sh
 ```
 
+打包所有已生成的 `*_profile.ncu-rep` 到 `artifacts/ncu_for_mac/*.tar.gz`（便于一次 `scp` 到 Mac）：
+
+```bash
+bash scripts/pack_ncu_reps_for_mac.sh
+```
+
+默认会导出各子项目扩展 metrics CSV（`RUN_NCU_CSV=1`）并运行 `plot_ncu_summary.py`。若只需完整 Section 的 `.ncu-rep`、跳过第二次 CSV 采集：
+
+```bash
+RUN_NCU_CSV=0 bash scripts/run_ncu_all.sh
+```
+

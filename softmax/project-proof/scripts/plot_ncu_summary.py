@@ -16,13 +16,24 @@ METRICS = {
     "dram__throughput.avg.pct_of_peak_sustained_elapsed": "DRAM Throughput (%)",
     "smsp__warps_active.avg.pct_of_peak_sustained_active": "Active Warps (%)",
     "smsp__inst_executed.sum": "Inst Executed",
+    "lts__t_request_hit_rate": "L2 Request Hit Rate",
+    "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum": "Shmem Bank Conflicts (LD)",
+    "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum": "Shmem Bank Conflicts (ST)",
+    "l1tex__average_t_sectors_per_request_pipe_lsu_mem_global_op_ld": "Avg Sectors / Global LD Req",
+    "tpc__average_registers_per_thread": "Avg Registers / Thread",
+    "sm__sass_data_bytes_mem_shared": "SASS Shmem Bytes (est.)",
+    "smsp__warp_issue_stalled_long_scoreboard_per_warp_active": "Stall Long Scoreboard",
+    "smsp__warp_issue_stalled_long_scoreboard_pipe_l1tex_per_warp_active": "Stall L1TEX Long Scoreboard",
+    "smsp__warp_issue_stalled_barrier_per_warp_active": "Stall Barrier",
+    "smsp__warp_issue_stalled_membar_per_warp_active": "Stall Membar",
+    "smsp__warp_issue_stalled_short_scoreboard_per_warp_active": "Stall Short Scoreboard",
 }
 
 
 def load_ncu_csv() -> tuple[pd.DataFrame | None, str]:
     files = sorted(NCU_DIR.glob("*_ncu.csv"))
     if not files:
-        return None, "No NCU CSV found. Run profile_ncu.sh first."
+        return None, "No NCU CSV found. Run RUN_NCU_CSV=1 bash project-proof/scripts/profile_ncu.sh first."
     path = files[0]
     text = path.read_text(encoding="utf-8", errors="ignore")
     if "ERR_NVGPUCTRPERM" in text:
@@ -161,6 +172,28 @@ def main() -> None:
     fig.tight_layout()
     fig.savefig(FIG_DIR / "03-ncu-bound-scatter.png", dpi=220)
     plt.close(fig)
+
+    stall_cols = [
+        "smsp__warp_issue_stalled_long_scoreboard_pipe_l1tex_per_warp_active",
+        "smsp__warp_issue_stalled_barrier_per_warp_active",
+        "smsp__warp_issue_stalled_membar_per_warp_active",
+        "smsp__warp_issue_stalled_short_scoreboard_per_warp_active",
+    ]
+    if all(c in grouped.columns for c in stall_cols):
+        fig, ax = plt.subplots(figsize=(11, 5.0))
+        w = 0.2
+        for si, col in enumerate(stall_cols):
+            offs = [i + (si - 1.5) * w for i in x]
+            short = col.split("stalled_")[1].split("_per")[0] if "stalled_" in col else col
+            ax.bar(offs, grouped[col].values, width=w, label=short)
+        ax.set_xticks(list(x), grouped.index, rotation=0)
+        ax.set_ylabel("Stall (per warp active ratio)")
+        ax.set_title("NCU Warp Stall Breakdown")
+        ax.grid(True, axis="y", linestyle="--", alpha=0.35)
+        ax.legend(fontsize=8)
+        fig.tight_layout()
+        fig.savefig(FIG_DIR / "04-ncu-warp-stall.png", dpi=220)
+        plt.close(fig)
 
     print(f"Saved NCU figures to: {FIG_DIR}")
 

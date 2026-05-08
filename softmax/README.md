@@ -43,13 +43,24 @@ python project-proof/scripts/plot_correctness.py
 - `03-speedup-vs-baseline.png`
 - `04-correctness.png`
 
-## NCU 关键指标采集
+## NCU（按版本生成 `.ncu-rep`）
 ```bash
 bash project-proof/scripts/profile_ncu.sh
-python project-proof/scripts/plot_ncu_summary.py
 ```
 
-输出目录：`project-proof/profiling/ncu/`
+会在 `project-proof/profiling/ncu/` 下生成各版本独立报告：`softmax_<tag>_profile.ncu-rep`。模板 kernel（v0–v4）使用 `regex:` 匹配。采集时 **`SOFTMAX_PROFILE_ONLY`** 由 `profile_ncu.sh` 自动传入。
+
+在 **Mac 终端**拉取到本机示例（先建好目录；把 `ubuntu22`、`Tailscale IP` 换成你的）：
+
+```bash
+mkdir -p "/Users/yuzhang_li/Desktop/CUDA/NCU-report/Softmax_NCU"
+scp ubuntu22@100.69.98.113:'~/CudaLearing/Kernel_Optimazation/softmax/project-proof/profiling/ncu/softmax_*_profile.ncu-rep' \
+  "/Users/yuzhang_li/Desktop/CUDA/NCU-report/Softmax_NCU/"
+```
+
+- 默认 `BENCH_ITERS=1`（采集较快）；需要可调：`BENCH_ITERS=10 bash project-proof/scripts/profile_ncu.sh`
+- **`plot_ncu_summary.py` 用的扩展 CSV**：`RUN_NCU_CSV=1 bash project-proof/scripts/profile_ncu.sh`，再执行 `python project-proof/scripts/plot_ncu_summary.py`；根目录 `bash scripts/run_ncu_all.sh` 默认会开启 `RUN_NCU_CSV=1`
+
 图表目录：`project-proof/docs/figures/02-profiling/`
 
 > 若提示 `ncu: command not found`，先安装 Nsight Compute（例如：`sudo apt install nsight-compute`）。

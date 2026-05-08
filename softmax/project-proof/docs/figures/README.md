@@ -22,5 +22,6 @@ python project-proof/scripts/plot_latency_log.py
 python project-proof/scripts/plot_speedup.py
 python project-proof/scripts/plot_correctness.py
 bash project-proof/scripts/profile_ncu.sh
+RUN_NCU_CSV=1 bash project-proof/scripts/profile_ncu.sh   # 若需 NCU CSV 汇总图
 python project-proof/scripts/plot_ncu_summary.py
 ```

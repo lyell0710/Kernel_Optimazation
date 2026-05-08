@@ -1,4 +1,6 @@
 #include "reduce_common.h"
+#include <cstdlib>
+#include <cstring>
 #include <cmath>
 #include <cuda_runtime.h>
 #include <fstream>
@@ -10,7 +12,15 @@
 int main()
 {
     const int N = 1 << 24;
-    const int kBenchmarkIters = 100;
+    int kBenchmarkIters = 100;
+    if (const char* env_iters = std::getenv("BENCH_ITERS"))
+    {
+        int parsed = std::atoi(env_iters);
+        if (parsed > 0)
+        {
+            kBenchmarkIters = parsed;
+        }
+    }
     const char* kCsvPath = "project-proof/data/benchmark_results.csv";
 
     // host
@@ -61,6 +71,65 @@ int main()
 
         std::cout << "[mean over " << kBenchmarkIters << " iters] " << name << ": " << mean_ms_out << " ms" << std::endl;
     };
+
+    if (const char* profile_only = std::getenv("REDUCE_PROFILE_ONLY"))
+    {
+        if (profile_only[0] != '\0')
+        {
+            float gpu_out = 0.0f, mean_ms = 0.0f;
+            if (std::strcmp(profile_only, "baseline") == 0)
+            {
+                bench_reduce("baseline", reduce_baseline, gpu_out, mean_ms);
+            }
+            else if (std::strcmp(profile_only, "v0") == 0)
+            {
+                bench_reduce("v0", reduce_v0, gpu_out, mean_ms);
+            }
+            else if (std::strcmp(profile_only, "v1") == 0)
+            {
+                bench_reduce("v1", reduce_v1, gpu_out, mean_ms);
+            }
+            else if (std::strcmp(profile_only, "v2") == 0)
+            {
+                bench_reduce("v2", reduce_v2, gpu_out, mean_ms);
+            }
+            else if (std::strcmp(profile_only, "v3") == 0)
+            {
+                bench_reduce("v3", reduce_v3, gpu_out, mean_ms);
+            }
+            else if (std::strcmp(profile_only, "v4") == 0)
+            {
+                bench_reduce("v4", reduce_v4, gpu_out, mean_ms);
+            }
+            else if (std::strcmp(profile_only, "v5") == 0)
+            {
+                bench_reduce("v5", reduce_v5, gpu_out, mean_ms);
+            }
+            else if (std::strcmp(profile_only, "v6") == 0)
+            {
+                bench_reduce("v6", reduce_v6, gpu_out, mean_ms);
+            }
+            else if (std::strcmp(profile_only, "v7") == 0)
+            {
+                bench_reduce("v7", reduce_v7, gpu_out, mean_ms);
+            }
+            else
+            {
+                std::cerr << "REDUCE_PROFILE_ONLY must be one of: baseline, v0..v7 (got: " << profile_only << ")\n";
+                cudaFree(d_in);
+                cudaFree(d_out);
+                cudaEventDestroy(start);
+                cudaEventDestroy(stop);
+                return 2;
+            }
+
+            cudaFree(d_in);
+            cudaFree(d_out);
+            cudaEventDestroy(start);
+            cudaEventDestroy(stop);
+            return 0;
+        }
+    }
 
     float baseline_gpu = 0.0f, baseline_ms = 0.0f;
     float v0_gpu = 0.0f, v0_ms = 0.0f;

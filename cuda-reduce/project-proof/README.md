@@ -7,6 +7,8 @@ This proof pack records the real benchmark results of a handwritten CUDA reducti
 - `docs/experiment-summary.md`: detailed experiment summary for documentation and interview use
 - `data/benchmark_results.csv`: structured benchmark record
 - `data/experiment_env.csv`: experiment environment and configuration metadata
+- `scripts/profile_ncu.sh`: per-version Nsight Compute reports (`.ncu-rep`) and optional `reduce_ncu.csv`
+- `scripts/plot_ncu_summary.py`: NCU summary figures from extended CSV
 - `scripts/plot_latency.py`: plotting script for latency comparison
 - `scripts/plot_correctness.py`: plotting script for correctness comparison
 - `src_refs/key-results.txt`: raw key result snapshot

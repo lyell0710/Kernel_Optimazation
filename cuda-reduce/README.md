@@ -48,8 +48,15 @@ cmake --build build -j
 ./build/reduce_bench
 ```
 
+## Nsight Compute（全指标 + 分版本 `.ncu-rep`）
+- 脚本：`project-proof/scripts/profile_ncu.sh`（Section：SpeedOfLight、LaunchStats、Occupancy、WarpStateStats、MemoryWorkloadAnalysis*、SchedulerStats）
+- 对每个版本生成 `project-proof/profiling/ncu/reduce_<tag>_profile.ncu-rep`；模板 kernel（v4–v7）使用 `regex:` 匹配。
+- 环境变量：`BENCH_ITERS`（默认 1）、`RUN_NCU_CSV=1` 导出 `reduce_ncu.csv`（与仓库根目录 `scripts/ncu_metrics.inc.sh` 中扩展 metrics 一致）、`REDUCE_PROFILE_ONLY` 由脚本自动设置（勿手改）。
+- 汇总图：`RUN_NCU_CSV=1 bash project-proof/scripts/profile_ncu.sh` 后执行 `python project-proof/scripts/plot_ncu_summary.py`
+- 全仓库一键（含本工程）：在 `Kernel_Optimazation` 根目录执行 `bash scripts/run_ncu_all.sh`（默认 `RUN_NCU_CSV=1`；仅要 `.ncu-rep` 时可 `RUN_NCU_CSV=0`）
+
 ## 基准流程说明
-- `main.cu` 采用多次迭代计时取均值（当前为 `100` 次）
+- `main.cu` 采用多次迭代计时取均值；默认 `100` 次。若设置环境变量 `BENCH_ITERS`（例如 NCU 采集时为 `1`），则以该值为准。
 - 每次运行 `reduce_bench` 会自动覆盖刷新：`project-proof/data/benchmark_results.csv`
 
 ## 生成图表

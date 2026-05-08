@@ -25,11 +25,16 @@ python project-proof/scripts/plot_speedup.py
 python project-proof/scripts/plot_correctness.py
 ```
 
-## NCU 关键指标采集
+## NCU（完整 Section + 每版本独立 `.ncu-rep`）
 ```bash
 bash project-proof/scripts/profile_ncu.sh
+RUN_NCU_CSV=1 bash project-proof/scripts/profile_ncu.sh
 python project-proof/scripts/plot_ncu_summary.py
 ```
+
+生成 `project-proof/profiling/ncu/int8_quantize_<tag>_profile.ncu-rep`（baseline、v0–v4）。**`QUANTIZE_PROFILE_ONLY`** 由脚本在采集时自动设置。
+
+打包拷到 Mac：仓库根目录执行 `bash scripts/pack_ncu_reps_for_mac.sh`。
 
 输出目录：`project-proof/profiling/ncu/`
 图表目录：`project-proof/docs/figures/02-profiling/`
