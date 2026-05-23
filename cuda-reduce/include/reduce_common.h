@@ -9,6 +9,7 @@ void reduce_v4(const float* data, float* output, int n);
 void reduce_v5(const float* data, float* output, int n);
 void reduce_v6(const float* data, float* output, int n);
 void reduce_v7(const float* data, float* output, int n);
+void reduce_cublas(const float* data, float* output, int n);
 
 
 float cpu_reduce(const float* data, int n);

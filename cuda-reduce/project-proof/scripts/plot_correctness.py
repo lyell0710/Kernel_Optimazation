@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 ROOT = Path(__file__).resolve().parents[2]
 CSV_PATH = ROOT / "project-proof" / "data" / "benchmark_results.csv"
 FIG_PATH = ROOT / "project-proof" / "docs" / "figures" / "01-benchmark" / "06-correctness.png"
-VERSION_ORDER = ("baseline", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7")
+VERSION_ORDER = ("v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "cuBLAS")
 
 
 def load_benchmark_rows():
@@ -48,8 +48,10 @@ def pick_colors(count: int):
 
 rows = aggregate_rows_by_version(load_benchmark_rows())
 row_by_version = {row["version"]: row for row in rows}
+# 移除 baseline
+row_by_version.pop("baseline", None)
 ordered_rows = [row_by_version[v] for v in VERSION_ORDER if v in row_by_version]
-extra_rows = [row for row in rows if row["version"] not in VERSION_ORDER]
+extra_rows = [row for row in rows if row["version"] not in VERSION_ORDER and row["version"] != "baseline"]
 plot_rows = ordered_rows + extra_rows
 
 labels = [row["version"] for row in plot_rows]

@@ -13,6 +13,8 @@ __global__ void gemv_v4_kernel(const float* __restrict__ mat,
                                int cols)
 {
     __shared__ float smem_x[blockSize];
+    // shared memory padding：2D 数组行步长为 blockSize，避免同列不同行的 bank conflict
+    // smem_partial[row_in_block][col] 中，同一列的多行写入会分散到不同 bank
     __shared__ float smem_partial[rowsPerBlock][blockSize];
 
     int tx = threadIdx.x;
@@ -26,7 +28,8 @@ __global__ void gemv_v4_kernel(const float* __restrict__ mat,
     float local = 0.0f;
     int row_offset = row * cols;
 
-    // 同一个block中的多个行共享x tile，降低对向量x的重复全局读取。
+    // 多行共享向量 x 的 tile：blockSize 个线程共同读取 x[base..base+blockSize)
+    // 避免每行独立读 x，降低向量 x 的全局访问带宽消耗
     for (int base = 0; base < cols; base += blockSize)
     {
         int c = base + tx;
@@ -40,9 +43,11 @@ __global__ void gemv_v4_kernel(const float* __restrict__ mat,
         __syncthreads();
     }
 
+    // 将局部累加和写入共享内存，准备 block-level 归约
     smem_partial[ty][tx] = local;
     __syncthreads();
 
+    // Block-level 二分归约：同一行的 blockSize 个线程相加
     for (int s = blockSize >> 1; s > 0; s >>= 1)
     {
         if (tx < s)

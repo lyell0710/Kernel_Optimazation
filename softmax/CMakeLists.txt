@@ -18,4 +18,10 @@ add_executable(softmax_bench
     src/softmax_v2.cu
     src/softmax_v3.cu
     src/softmax_v4.cu
+    src/softmax_v4_2.cu
+    src/softmax_v4_3.cu
+    src/softmax_v4_4.cu
+    src/softmax_cublas.cu
 )
+
+target_link_libraries(softmax_bench PRIVATE cublas)

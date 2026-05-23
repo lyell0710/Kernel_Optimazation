@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 ROOT = Path(__file__).resolve().parents[2]
 CSV_PATH = ROOT / "project-proof" / "data" / "benchmark_results.csv"
 FIG_PATH = ROOT / "project-proof" / "docs" / "figures" / "01-benchmark" / "01-latency.png"
-VERSION_ORDER = ("baseline", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7")
+VERSION_ORDER = ("v0", "v1", "v2", "v3", "v4", "v4.2", "cublas", "v5", "v6", "v7")
 
 
 def load_rows():

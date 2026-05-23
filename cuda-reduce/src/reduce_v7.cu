@@ -90,51 +90,37 @@ void reduce_v7(const float* data, float* output, int n)
         return;
     }
 
-    // Cache device-derived launch configuration once.
-    static int s_max_grid = 0;
-    if (s_max_grid == 0)
-    {
-        cudaDeviceProp prop{};
-        cudaGetDeviceProperties(&prop, 0);
-        s_max_grid = prop.multiProcessorCount * 8;
-        if (s_max_grid < 1)
-        {
-            s_max_grid = 1;
-        }
-    }
-
-    // Reuse temporary buffer across calls to avoid per-iteration malloc/free.
-    static float* s_partial = nullptr;
-    static int s_partial_capacity = 0;
+    cudaDeviceProp prop{};
+    cudaGetDeviceProperties(&prop, 0);
 
     int grid1 = (n + kBlockSize - 1) / kBlockSize;
-    if (grid1 > s_max_grid)
+    int max_grid = prop.multiProcessorCount * 8;
+    if (max_grid < 1)
     {
-        grid1 = s_max_grid;
+        max_grid = 1;
+    }
+    if (grid1 > max_grid)
+    {
+        grid1 = max_grid;
     }
     if (grid1 < 1)
     {
         grid1 = 1;
     }
 
-    if (grid1 > s_partial_capacity)
-    {
-        if (s_partial != nullptr)
-        {
-            cudaFree(s_partial);
-        }
-        cudaMalloc(&s_partial, grid1 * sizeof(float));
-        s_partial_capacity = grid1;
-    }
+    float* d_partial = nullptr;
+    cudaMalloc(&d_partial, grid1 * sizeof(float));
 
-    reduce_v7_kernel<kBlockSize><<<grid1, kBlockSize>>>(data, s_partial, n);
+    reduce_v7_kernel<kBlockSize><<<grid1, kBlockSize>>>(data, d_partial, n);
 
     if (grid1 > 1)
     {
-        reduce_v7_kernel<kBlockSize><<<1, kBlockSize>>>(s_partial, output, grid1);
+        reduce_v7_kernel<kBlockSize><<<1, kBlockSize>>>(d_partial, output, grid1);
     }
     else
     {
-        cudaMemcpy(output, s_partial, sizeof(float), cudaMemcpyDeviceToDevice);
+        cudaMemcpy(output, d_partial, sizeof(float), cudaMemcpyDeviceToDevice);
     }
+
+    cudaFree(d_partial);
 }

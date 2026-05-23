@@ -44,6 +44,7 @@ PROFILE_TARGETS=(
   "v2:gemv_v2_kernel"
   "v3:gemv_v3_kernel"
   "v4:gemv_v4_kernel"
+  "cublas:regex:gemv2T_kernel_val"
 )
 
 run_ncu_rep() {

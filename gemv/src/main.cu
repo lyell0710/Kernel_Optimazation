@@ -131,9 +131,13 @@ int main()
             {
                 run_and_check("v4", gemv_v4, mean_ms, max_diff);
             }
+            else if (std::strcmp(profile_only, "cublas") == 0)
+            {
+                run_and_check("cublas", gemv_cublas, mean_ms, max_diff);
+            }
             else
             {
-                std::cerr << "GEMV_PROFILE_ONLY must be baseline or v0..v4 (got: " << profile_only << ")\n";
+                std::cerr << "GEMV_PROFILE_ONLY must be baseline, v0..v4, or cublas (got: " << profile_only << ")\n";
                 cudaEventDestroy(start);
                 cudaEventDestroy(stop);
                 cudaFree(d_mat);
@@ -156,6 +160,7 @@ int main()
     float v2_ms = 0.0f, v2_diff = 0.0f;
     float v3_ms = 0.0f, v3_diff = 0.0f;
     float v4_ms = 0.0f, v4_diff = 0.0f;
+    float cublas_ms = 0.0f, cublas_diff = 0.0f;
 
     run_and_check("baseline", gemv_baseline, baseline_ms, baseline_diff);
     run_and_check("v0", gemv_v0, v0_ms, v0_diff);
@@ -163,6 +168,7 @@ int main()
     run_and_check("v2", gemv_v2, v2_ms, v2_diff);
     run_and_check("v3", gemv_v3, v3_ms, v3_diff);
     run_and_check("v4", gemv_v4, v4_ms, v4_diff);
+    run_and_check("cublas", gemv_cublas, cublas_ms, cublas_diff);
 
     std::ofstream csv_out(kCsvPath, std::ios::trunc);
     csv_out << "version,rows,cols,latency_ms,speedup_vs_baseline,max_diff,correctness_pass\n";
@@ -181,6 +187,7 @@ int main()
     write_row("v2", v2_ms, v2_diff);
     write_row("v3", v3_ms, v3_diff);
     write_row("v4", v4_ms, v4_diff);
+    write_row("cublas", cublas_ms, cublas_diff);
     std::cout << "Updated benchmark CSV: " << kCsvPath << std::endl;
 
     cudaEventDestroy(start);

@@ -8,7 +8,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[2]
 CSV_PATH = ROOT / "project-proof" / "data" / "benchmark_results.csv"
 FIG_PATH = ROOT / "project-proof" / "docs" / "figures" / "01-benchmark" / "03-latency-zoom.png"
-VERSION_ORDER = ("baseline", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7")
+VERSION_ORDER = ("v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "cuBLAS")
 
 
 def load_benchmark_rows():
@@ -44,17 +44,24 @@ def aggregate_rows_by_version(rows):
 
 rows = aggregate_rows_by_version(load_benchmark_rows())
 row_by_version = {row["version"]: row for row in rows}
+# 移除 baseline
+row_by_version.pop("baseline", None)
 ordered_rows = [row_by_version[v] for v in VERSION_ORDER if v in row_by_version]
-extra_rows = [row for row in rows if row["version"] not in VERSION_ORDER]
+extra_rows = [row for row in rows if row["version"] not in VERSION_ORDER and row["version"] != "baseline"]
 plot_rows = ordered_rows + extra_rows
 
 labels = [row["version"] for row in plot_rows]
 latency_ms = [float(row["latency_ms"]) for row in plot_rows]
-baseline_latency = (
-    float(row_by_version["baseline"]["latency_ms"])
-    if "baseline" in row_by_version
-    else latency_ms[0]
-)
+# 以 cuBLAS 为基准（如果没有则以 v0）
+if "cuBLAS" in row_by_version:
+    baseline_latency = float(row_by_version["cuBLAS"]["latency_ms"])
+    ref_name = "cuBLAS"
+elif "v0" in row_by_version:
+    baseline_latency = float(row_by_version["v0"]["latency_ms"])
+    ref_name = "v0"
+else:
+    baseline_latency = max(latency_ms) if latency_ms else 1.0
+    ref_name = "ref"
 speedups = [baseline_latency / value for value in latency_ms]
 x = np.arange(len(labels))
 
@@ -69,9 +76,9 @@ ax_all.set_ylabel("Latency (ms)")
 ax_all.set_xlabel("Version")
 ax_all.grid(True, axis="y", linestyle="--", alpha=0.35)
 
-# 只标 baseline + 前半段，减少文字拥挤
+# 只标前半段，减少文字拥挤
 for i, (name, value, sp) in enumerate(zip(labels, latency_ms, speedups)):
-    if name not in {"baseline", "v0", "v1", "v2"}:
+    if name not in {"v0", "v1", "v2"}:
         continue
     ax_all.annotate(
         f"{value:.6f} ms\n({sp:.1f}x)",
@@ -82,8 +89,8 @@ for i, (name, value, sp) in enumerate(zip(labels, latency_ms, speedups)):
         fontsize=8,
     )
 
-# 右图：后段放大比较（v3~v7）
-focus_labels = [v for v in ("v3", "v4", "v5", "v6", "v7") if v in row_by_version]
+# 右图：后段放大比较（v3~v7+cuBLAS）
+focus_labels = [v for v in ("v3", "v4", "v5", "v6", "v7", "cuBLAS") if v in row_by_version]
 focus_latency = [float(row_by_version[v]["latency_ms"]) for v in focus_labels]
 focus_speedups = [baseline_latency / v for v in focus_latency]
 focus_x = np.arange(len(focus_labels))
@@ -112,7 +119,7 @@ for xi, value, speedup in zip(focus_x, focus_latency, focus_speedups):
     )
 
 ax_zoom.annotate(
-    f"baseline = {baseline_latency:.3f} ms",
+    f"{ref_name} = {baseline_latency:.3f} ms (ref)",
     (0, focus_latency[0] if focus_latency else 0.0),
     textcoords="offset points",
     xytext=(5, -28),

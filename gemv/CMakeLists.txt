@@ -18,4 +18,7 @@ add_executable(gemv_bench
     src/gemv_v2.cu
     src/gemv_v3.cu
     src/gemv_v4.cu
+    src/gemv_cublas.cu
 )
+
+target_link_libraries(gemv_bench PRIVATE cublas)

@@ -45,6 +45,10 @@ PROFILE_TARGETS=(
   "v2:regex:softmax_v2_kernel"
   "v3:regex:softmax_v3_kernel"
   "v4:regex:softmax_v4_kernel"
+  "v4.2:regex:softmax_v4_2_kernel"
+  "v4.3:regex:softmax_v4_3_kernel"
+  "v4.4:regex:softmax_v4_4_kernel"
+  "cublas:regex:softmax_cublas_kernel"
 )
 
 run_ncu_rep() {

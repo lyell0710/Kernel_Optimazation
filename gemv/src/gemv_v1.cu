@@ -19,7 +19,8 @@ __global__ void gemv_v1_kernel(const float* __restrict__ mat,
         return;
     }
 
-    // 每个线程一次处理两个元素，降低循环和索引开销。
+    // 每个线程一次处理两个元素：降低循环迭代和索引计算开销
+    // 步长 blockSize*2：同一 warp 的相邻线程访存地址对齐 64-bit，提升 memory coalescing
     float sum = 0.0f;
     const int row_offset = row * cols;
     for (int c = tid * 2; c < cols; c += blockSize * 2)
