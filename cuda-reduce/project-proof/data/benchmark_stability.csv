@@ -1,5 +1,4 @@
 version,mean_latency_ms,std_latency_ms
-baseline,347.774333,0.140224
 v0,0.387981,0.000052
 v1,0.393741,0.008559
 v2,0.422620,0.016762

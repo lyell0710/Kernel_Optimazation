@@ -26,6 +26,9 @@ pip install matplotlib numpy
 
 ## 编译（每个 kernel 独立 CMake）
 
+> 若 CMake 报 "No CMAKE_CUDA_COMPILER could be found"，先把 nvcc 加入 PATH：
+> `export PATH=/usr/local/cuda/bin:$PATH`（建议写入 `~/.bashrc`）
+
 ```bash
 # softmax
 cd softmax && mkdir build && cd build
