@@ -1,0 +1,6 @@
+ptxas info    : Function properties for _Z13fa2_v2_kernelPK6__halfS1_S1_PS_iiib
+ptxas info    : Used 72 registers, used 1 barriers, 397 bytes cmem[0]
+ptxas info    : Function properties for _Z13fa2_v3_kernelPK6__halfS1_S1_PS_iiib
+ptxas info    : Used 95 registers, used 1 barriers, 397 bytes cmem[0]
+ptxas info    : Function properties for _Z13fa2_v4_kernelPK6__halfS1_S1_PS_iiib
+ptxas info    : Used 80 registers, used 1 barriers, 397 bytes cmem[0]
