@@ -17,8 +17,9 @@ cuBLAS/baseline 的**版本间排序在 4090 上可能改变**(带宽/算力/L2 
 ## 2. 环境与配置
 
 `scripts/run_bench_and_plot_all.sh`(softmax/gemv/int8-quantize)+
-cuda-reduce 单独 cmake+`reduce_bench`。各 bench 自带 100 iters + warmup +
-stability CSV(mean±std);尺寸与版本矩阵与原仓完全一致(未改任何源码)。
+cuda-reduce 单独 cmake+`reduce_bench`。各 bench 自带 100 iters + warmup
+(stability CSV 仅 cuda-reduce 产出,见 §4 勘误);尺寸与版本矩阵与原仓
+完全一致(未改任何源码)。
 旧值来源:`git show HEAD:<project>/project-proof/data/benchmark_results.csv`。
 
 ## 3. 步骤
@@ -39,7 +40,7 @@ int8-quantize 的 bench 不产 stability 文件——4090 头条数字为单轮 
 
 | kernel | 最优版 | 4090 | Laptop | 4090 vs cuBLAS | Laptop vs cuBLAS |
 |---|---|---|---|---|---|
-| reduce | **v7** | 0.0296 | 1.665(彼时回退版) | **快 25%**(0.0371/0.0296) | v4 慢 1.7%(彼时最优) |
+| reduce | **v7** | 0.0296 | 1.665(旧 results;与旧 stability 0.273 矛盾,存疑) | **快 25%**(0.0371/0.0296) | v4 慢 1.7%(旧 results 口径) |
 | softmax(aligned 1024²) | v4 | 0.0078 | 0.0164 | **快 26%**(0.0098/0.0078) | 快 26% |
 | softmax(mis 1024×1500) | v4 | 0.0099 | 0.0223 | **快 34%**(0.0133/0.0099) | 快 26% |
 | gemv | v3 | 0.0128 | 0.0325 | **快 84%**(0.0235/0.0128) | 快 19% |
@@ -87,5 +88,6 @@ softmax 26%(4090 aligned 同值,mis 34%);gemv 84% 须带"cuBLAS gemv 该卡
 ## 8. 下游影响
 
 - 简历 CUDA 段数字按 §6 方案迁移(红线:gemv 84% 必须带对照物限定)。
-- reduce 排序反转 = 面试"roofline 迁移"最佳素材(同码不同卡,最优解变)。
+- 面试素材改为两条:①4090 上 v7 反超 cuBLAS 25%(实测硬);②旧数据
+  自相矛盾被审计抓出并如实降级——"数据考古的诚实处理"本身是素材。
 - int8 的 PyTorch-eager 4090 对照 → triton-kernels#EXP-T03 一并出。
