@@ -55,3 +55,31 @@
 - **产物**:flash-attn/(5 kernel+参考+bench)、records/EXP-K03、
   project-proof/data/(3 轮 raw + derived + ptxas)。
 - **下一步**:v5 mma PTX(与 gemm v5 同一张技能票,backlog);commit+push。
+
+## §5 2026-08-24 · 审计收尾批次
+
+- **做了什么**:逐条落实已确认审计 findings(红→低):①PORTFOLIO 更名
+  PORTFOLIO.md、"四个项目"改六个,项目 1/Pattern 2/3/面试节全面换用 4090
+  现行数字(reduce v7 反超真 cuBLAS 24.5%,3 轮),Laptop 旧代 reduce 叙事与
+  softmax vs-cuBLAS 段按铁律 7 移 docs/archive/(勘误留痕,不删叙事);
+  ②softmax NCU SUMMARY 加勘误横幅,cublas 行改 handwritten_ref;③flash-attn
+  固定名 benchmark_results.csv 与 3 轮 UTC 数据核对一致后 git rm(EXP-K03 §7
+  补记"终端级证据,已删");④gemm/flash-attn raw 的 driver=13.3 误填不改 raw,
+  以两 data/manifest.txt 勘误 + 修两 main.cu 的 provenance 生成(driver=真实
+  610.57.04,另立 cuda= 字段,只改源码不重跑);⑤README 死链(layernorm/、
+  notes/)删除、Suggested Workflow 改指 records/红线表流程;⑥ENV.md 补 4090
+  容器节并给 Laptop 节标注旧代;⑦各 profiling/ncu/ 补 manifest.txt(sha256+
+  Laptop 采集环境+日期);⑧EXP-K01 §7 登记补测 backlog;⑨删 cuda-reduce 两个
+  0 字节无引用头文件。
+- **为什么**:审计确认问题闭环。硬约束:raw 不可变(用 manifest/勘注/归档),
+  GPU 被另一实验占用禁跑(一切补测转 backlog,相关数字加"单轮"限定)。
+- **关键数字**:reduce v7 0.02988±0.00011 ms vs 真 cuBLAS 0.03721±0.00022 ms
+  (快 24.5%,3 轮,records/data/exp_k01_reduce_3rounds.csv);现行可说集另含
+  gemm 133.1 TFLOPS=cuBLAS 85.6%(EXP-K02)、FA2 34.8 TFLOPS wmma 架构税
+  (EXP-K03)、quantize 6.6×(Laptop,PyTorch-eager 口径)。
+- **产物路径**:PORTFOLIO.md、docs/archive/2026-08-24_portfolio_laptop_era_sections.md、
+  gemm|flash-attn/project-proof/data/manifest.txt、五个 profiling/ncu/manifest.txt、
+  records/EXP-K01 §7、records/EXP-K03 §7、ENV.md、README.md、
+  softmax/project-proof/profiling/ncu/SUMMARY.md。
+- **下一步**:GPU 空闲后按 EXP-K01 §7 backlog 给 softmax/gemv/int8-quantize
+  补 UTC 前缀 3 轮 stability;gemm/fa2 v5(mma PTX)技能票不变。

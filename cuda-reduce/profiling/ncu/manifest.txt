@@ -1,0 +1,13 @@
+# manifest — cuda-reduce/profiling/ncu (2026-08-24 审计收尾补登)
+# 采集环境: RTX 4070 Laptop (sm_89), Laptop 时代 NCU 采集; 入库日期(git) = 2026-05-03
+# 4090 容器 NCU 不可用(ERR_NVGPUCTRPERM, 见 records/EXP-K01 §7), 本目录仅作机理参照;
+# profiler 环境的时延数字永不进 benchmark 表(CORE 执行要点)。
+# sha256  文件:
+9ca1254a5e6fd5ac094d69da50c2368ffa4e2c4ff512302d71a4d4c44930d1b9  ./reduce_bench_ncu.ncu-rep
+d40d978eec64ecddcba5ffeb229f29f0e5f8e56d8e080bf253f4b0678b6b3694  ./reduce_v5_once.ncu-rep
+5964255c0fd0c9e06fa98c436760dc91c7d3d3b31548baab3429fba6ef43f593  ./reduce_v5_once_after_v7.ncu-rep
+b06f793132df29ac58ca1bef391709383c6708badb4f13d813ff7d2d2e8bb7d2  ./reduce_v6_once.ncu-rep
+d7370916f0cb60a30e17eb59b5895fba112f7649d918f1f4b6e0210342d9eb43  ./reduce_v7_once.ncu-rep
+000adde24fd477df64bfd35dd2e0ed9c61c3119efddee96f7d531b7297161978  ./text/reduce_v5_once_after_v7_raw.csv
+d7cc8bff93335bb6edba0d0553c9a90741e523e7fb0d90fe48ac219699935e86  ./text/reduce_v6_once_raw.csv
+b01613f889a10a27da4bd498f2ee4afd827e0cd44424bc030d760c27b9ed448e  ./text/reduce_v7_once_raw.csv

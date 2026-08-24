@@ -1,0 +1,14 @@
+# manifest — gemv/project-proof/profiling/ncu (2026-08-24 审计收尾补登)
+# 采集环境: RTX 4070 Laptop (sm_89), Laptop 时代 NCU 采集; 入库日期(git) = 2026-05-23
+# 4090 容器 NCU 不可用(ERR_NVGPUCTRPERM, 见 records/EXP-K01 §7), 本目录仅作机理参照;
+# profiler 环境的时延数字永不进 benchmark 表(CORE 执行要点)。
+# sha256  文件:
+efb146f10103937b6ea6c0f1662d866ff7753322a78566c263f1e733f944032b  ./SUMMARY.md
+74dd4031759110a9583e913e0bf8c513e8f2e87f12211d2311bbd097aeb4fdf5  ./gemv_baseline_profile.ncu-rep
+7482c19130e74e557b9be7bacb73b40ee02280516b7dcd6d2260321ee942802b  ./gemv_cublas_profile.ncu-rep
+cc1ebf3d0dda96706d21b042cfd5b8c71b77488cfb962ab5e8c96ac7649af02c  ./gemv_ncu.csv
+927c3fa4bcadac985549a30024686e3b1c503d5b1c3462ea6d5eaf499c52e05a  ./gemv_v0_profile.ncu-rep
+a97468a181047013fbd48895ada40df9824818c1aade761cece580e09bf795c1  ./gemv_v1_profile.ncu-rep
+79f376546af33beda238b9376aa10b8b5e55c254a45010157f62879cdef21b69  ./gemv_v2_profile.ncu-rep
+791535e42c0fb1507ede22d69a20c94a65e14acb06a3c466a07a088f3f720b77  ./gemv_v3_profile.ncu-rep
+7f04dd12cf1763991d46261b9b53b163ef3ec83ae388118367255df98af41f04  ./gemv_v4_profile.ncu-rep

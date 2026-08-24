@@ -1,0 +1,12 @@
+# manifest — gemm/project-proof/data/ (2026-08-24 审计收尾补登)
+# 勘误: 本目录 raw CSV 首行 provenance 的 driver=13.3 系 CUDA driver-API 版本(cudaDriverGetVersion)误填;
+#       真实内核驱动 = 610.57.04 (/proc/driver/nvidia/version, NVIDIA UNIX Open Kernel Module)。
+#       raw 不可变, 不改文件本体, 以本勘误行为准; src/main.cu 的 provenance 生成已修
+#       (driver=真实驱动版本, CUDA 版本另立 cuda= 字段), 下次运行生效——本次未重跑(GPU 被占用)。
+# ptxas_resource_usage.txt: nvcc -O3 -arch=sm_89 -Xptxas -v 编译输出(2026-08-24, 4090 容器, CUDA 13.2), 无首行 provenance, 以本行登记。
+# sha256  文件:
+f25747f9ca21dd9574d660f57042d0c087bd47cc77dfb56f48b524a78042db7d  ./20260824T1517_gemm4096_r1.csv
+c34332d39fe847e83951cab0c3bdc539e176039e03879551e59704196df6535d  ./20260824T1517_gemm4096_r2.csv
+fcb4dce5dc97a1dbd3d8ad0f6428ed1f85d006c8f40251eaa0a8ac18664441a8  ./20260824T1517_gemm4096_r3.csv
+46e2d8ec010b564db1734bd396259687564135c99b45d48ebc011fcd35f082de  ./derived_gemm4096_stability.csv
+2c183f99bea34a93a38001f05ad45738f98d4b5925a03a84c8fd1891c6d3a35b  ./ptxas_resource_usage.txt

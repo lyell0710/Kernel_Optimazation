@@ -6,10 +6,32 @@
 #include <cmath>
 #include <ctime>
 #include <fstream>
+#include <string>
 #include <iomanip>
 #include <vector>
 #include <cuda_runtime.h>
 #include "fa_common.h"
+
+
+// 真实内核驱动版本(/proc/driver/nvidia/version)。cudaDriverGetVersion 返回的是
+// CUDA driver-API 版本,曾被误填进 provenance 的 driver= 字段(勘误见
+// project-proof/data/manifest.txt);现 driver=真实驱动,CUDA 版本另立 cuda= 字段。
+static const char* nvidia_driver_version() {
+    static char buf[64] = "unknown";
+    std::ifstream f("/proc/driver/nvidia/version");
+    std::string tok;
+    while (f >> tok) {
+        if (tok.find('.') == std::string::npos) continue;
+        bool ok = true;
+        for (char c : tok)
+            if (!(c >= '0' && c <= '9') && c != '.') { ok = false; break; }
+        if (ok && tok.size() < sizeof(buf)) {
+            snprintf(buf, sizeof buf, "%s", tok.c_str());
+            break;
+        }
+    }
+    return buf;
+}
 
 using Fn = void (*)(const half*, const half*, const half*, half*,
                     int, int, int, int, bool);
@@ -94,7 +116,8 @@ int main() {
         const char* sha = std::getenv("GIT_SHA");
         csv << "# provenance: env=4090-container sha=" << (sha ? sha : "unknown")
             << " cmd=\"fa2_bench\" date=" << ts << " gpu=\"" << prop.name
-            << "\" driver=" << drv / 1000 << "." << drv % 1000 / 10 << "\n";
+            << "\" driver=" << nvidia_driver_version()
+            << " cuda=" << drv / 1000 << "." << drv % 1000 / 10 << "\n";
     }
     csv << "version,B,Hq,Hkv,S,D,causal,latency_ms,tflops,max_abs_err_vs_ref,"
            "correctness_pass\n";

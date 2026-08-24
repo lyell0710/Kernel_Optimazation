@@ -99,6 +99,12 @@ S=4096 协议点(3 轮 mean±std):
 - 开放:v5 = mma PTX + ldmatrix(拿到确定布局,softmax 上寄存器)——与
   EXP-K02 的 gemm v5 是同一张技能票,二者共用一次学习成本。
 
+- **补记(2026-08-24 审计收尾)**:首次单轮验证跑落下的固定名
+  `project-proof/data/benchmark_results.csv`(sha=unknown,违 CORE bench 铁则)
+  已 git rm——删除前与 3 轮 UTC 数据逐行核对一致(v4_overlap S=4096:
+  3.9427ms/34.9TF,3 轮为 3.9404/3.9434/3.9617ms),按「终端级证据,已删」
+  处理;并核验 src/main.cu:设 BENCH_OUT 时仅写 UTC 前缀文件,不落固定名。
+
 ## 8. 下游影响
 
 - 面试可说:「CUDA 手写 FA2 前向(在线 softmax + wmma + cp.async 重叠),

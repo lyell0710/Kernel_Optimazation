@@ -1,0 +1,18 @@
+# manifest — softmax/project-proof/profiling/ncu (2026-08-24 审计收尾补登)
+# 采集环境: RTX 4070 Laptop (sm_89), Laptop 时代 NCU 采集; 入库日期(git) = 2026-05-23
+# 4090 容器 NCU 不可用(ERR_NVGPUCTRPERM, 见 records/EXP-K01 §7), 本目录仅作机理参照;
+# profiler 环境的时延数字永不进 benchmark 表(CORE 执行要点)。
+# sha256  文件:
+e5d370e3abaf19c8ab43f5e3bf183d470005e03baadbc562420ebb4deead3d88  ./SUMMARY.md
+84924284bc279d286108de01a971d03fff40c6bb47b8ed19d0f4a386012ffd0c  ./softmax_baseline_profile.ncu-rep
+95446c99b5ca1daf082a2719f3fe4aa03e929a3e0fb483b8448a371621524c14  ./softmax_cublas_profile.ncu-rep
+c6ce2565d32d604b086e0cb94c6b9545b3ca9fb6bfd1d2d838bd41e37438253f  ./softmax_ncu.csv
+0afa78e1cd525af2277e8aa9d547088ed565c75419372f87fb65ff77bc92eb3f  ./softmax_smoke.ncu-rep
+f511a43f26c6a86431a2d0b2910dd65791a716d85921b94bf9a32751836aa5a7  ./softmax_v0_profile.ncu-rep
+0e285e1079a86f69fafb440f37875901c88ec55daaada7c979333296aaad5219  ./softmax_v1_profile.ncu-rep
+e5139f7616d6d5c65522e604fc76a06eb2f121c195141fbc9e1cfeba15485c47  ./softmax_v2_profile.ncu-rep
+ece3a37911f6902d935c7368edee26a433d83f7ce9666697520aa29bab359bcc  ./softmax_v3_profile.ncu-rep
+dbaab6bd31eedd871a4d60d735032c331568ce08e1032a6d530e27cf10a9c8d7  ./softmax_v4.2_profile.ncu-rep
+e147ded6d990596f7c4b6071977241f6b9b921e24fbb740d71a1c579c89ae77c  ./softmax_v4.3_profile.ncu-rep
+60a8a2a40d291475dd9933f5347dc2093dff53e94aa26ea332211b998bdc3a49  ./softmax_v4.4_profile.ncu-rep
+d8d9089bcfa2a7a74718cd8ec9134425062acc8585e7ce7f6048ae6ae0029b08  ./softmax_v4_profile.ncu-rep

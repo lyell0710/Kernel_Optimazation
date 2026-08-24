@@ -95,6 +95,12 @@ softmax 对比句**撤下**(对照系自写 kernel,见 §5 勘误);gemv 84% 须�
   的说法错误,已改。整改项:四 bench 补 ≥3 轮 stability 输出——**reduce 头条已补**(8/24,
   records/data/exp_k01_reduce_3rounds.csv,24.5%);其余三项目待补。
 
+- **backlog(2026-08-24 审计收尾登记;GPU 被另一实验占用,禁跑)**:
+  softmax/gemv/int8-quantize 的 4090 数字补测,按 gemm/fa2 模式
+  (BENCH_OUT=UTC 前缀新文件 + 首行 provenance + 3 轮 mean/std 落 stability)
+  执行,**待 GPU 空闲**;在此之前上述三项目的 4090 数字(含 README 索引的
+  gemv 84%)一律带「单轮」限定。
+
 ## 8. 下游影响
 
 - 简历 CUDA 段数字按 §6 方案迁移(红线:gemv 84% 必须带对照物限定)。

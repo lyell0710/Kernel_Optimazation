@@ -1,6 +1,13 @@
 # 环境复现指南
 
-## 测试环境
+## 4090 容器(现行数字环境:EXP-K01/K02/K03,2026-08-23 起)
+- GPU: RTX 4090(sm_89,~1008 GB/s GDDR6X)
+- CUDA: 13.2(`cudaDriverGetVersion` 报 13.3 driver-API 版本——旧 raw 的 driver=13.3 即此误填,勘误见各 project-proof/data/manifest.txt)
+- Driver: 610.57.04(NVIDIA UNIX Open Kernel Module,/proc/driver/nvidia/version)
+- NCU: **受限**——容器 ERR_NVGPUCTRPERM 无性能计数器权限(records/EXP-K01 §7);4090 端只有 bench 数字,NCU 机理参照沿用 Laptop 时代 ncu-rep(artifacts/ncu_for_mac/ 与各 profiling/ncu/)
+- 本机实况(venv/启动命令)看 /root/work/infra/machine/ENV_REGISTRY.md;本文件只讲异地复现
+
+## 测试环境(RTX 4070 Laptop —— 仅对应旧代 Laptop 数据,现行 4090 数字见上节)
 - OS: Ubuntu 22.04
 - GPU: RTX 4070 Laptop (sm_89)
 - CUDA Driver: 595.71.05（支持 CUDA 13.2）

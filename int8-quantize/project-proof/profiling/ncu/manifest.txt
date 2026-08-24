@@ -1,0 +1,13 @@
+# manifest — int8-quantize/project-proof/profiling/ncu (2026-08-24 审计收尾补登)
+# 采集环境: RTX 4070 Laptop (sm_89), Laptop 时代 NCU 采集; 入库日期(git) = 2026-05-23
+# 4090 容器 NCU 不可用(ERR_NVGPUCTRPERM, 见 records/EXP-K01 §7), 本目录仅作机理参照;
+# profiler 环境的时延数字永不进 benchmark 表(CORE 执行要点)。
+# sha256  文件:
+9221ad79bdad5f2eed9129dcf502a350283c1027b712d479321eceb85c1a34ab  ./SUMMARY.md
+ceb674cb12f15e40971c3ad2622c06d60856cd48263906cf3c1b6cdf8bba2f9b  ./int8_quantize_baseline_profile.ncu-rep
+6ca03d886328124a1f61443bb32d98378e8fcd95640114abdc7d003d480c52e9  ./int8_quantize_ncu.csv
+ca6749b66e89d6cd93159c7ffe755a9bea3fa2060c97f92e7546020626999e71  ./int8_quantize_v0_profile.ncu-rep
+2ba5a4ff3964fd6d3efab62f8a3f190ee85e86e116b81b73f83c7f15f7f0a13a  ./int8_quantize_v1_profile.ncu-rep
+271c2d2d7288ca2ad6e0ceac9720505732230b28d9a38ffebf76170ed22031ba  ./int8_quantize_v2_profile.ncu-rep
+aafc5ead3d1d60a123242301cd95573ca389cf70a966bd6396ba638c551b27d4  ./int8_quantize_v3_profile.ncu-rep
+3ab5369de3e4f53dd9d593c18b8e53738e0ace461bad3330e49d0c27a6a64cf6  ./int8_quantize_v4_profile.ncu-rep

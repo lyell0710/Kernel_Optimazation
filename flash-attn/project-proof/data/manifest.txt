@@ -1,0 +1,13 @@
+# manifest — flash-attn/project-proof/data/ (2026-08-24 审计收尾补登)
+# 勘误: 本目录 raw CSV 首行 provenance 的 driver=13.3 系 CUDA driver-API 版本(cudaDriverGetVersion)误填;
+#       真实内核驱动 = 610.57.04 (/proc/driver/nvidia/version, NVIDIA UNIX Open Kernel Module)。
+#       raw 不可变, 不改文件本体, 以本勘误行为准; src/main.cu 的 provenance 生成已修
+#       (driver=真实驱动版本, CUDA 版本另立 cuda= 字段), 下次运行生效——本次未重跑(GPU 被占用)。
+# 注: 固定名 benchmark_results.csv(单轮验证跑, sha=unknown)已于 2026-08-24 git rm, 删除前与 3 轮 UTC 数据核对一致, 见 records/EXP-K03 §7。
+# ptxas_resource_usage.txt: nvcc -O3 -arch=sm_89 -Xptxas -v 编译输出(2026-08-24, 4090 容器, CUDA 13.2), 无首行 provenance, 以本行登记。
+# sha256  文件:
+f5583df635de31a95942f438e116bcdf617aa13526143bff1a53dc581c35902a  ./20260824T1543_fa2_proto_r1.csv
+e65ecbd259fdd0575c09b818bb870c56325372bb2c53b6844bb760803d0b78ff  ./20260824T1543_fa2_proto_r2.csv
+9c48d057c23679d0716234f021b2b951605ef598103b3604dc2fbd877e595eb5  ./20260824T1544_fa2_proto_r3.csv
+e0295b76339ccc50329bc85e826b954c964f9ff3e86279a25dec6dcfd086e19f  ./derived_fa2_proto_stability.csv
+20a614a6a5b3325cc5a24a54d94c40bed397c8a4efd05d246265e4ddf9a54321  ./ptxas_resource_usage.txt
