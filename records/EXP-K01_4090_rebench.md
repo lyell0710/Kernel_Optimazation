@@ -63,8 +63,9 @@ int8-quantize 的 bench 不产 stability 文件——4090 头条数字为单轮 
 
 排序反转假设**不可判定**(旧数据自相矛盾,见 §5 勘注);4090 端结论独立
 成立。简历数字迁移方案:reduce 347.6ms→0.291ms(Laptop 叙事保留)+
-4090 版"最优实现(v7)反超 cuBLAS 25%(0.0296 vs 0.0371ms,单轮,
-补 3 轮后转正)";
+4090 版"最优实现(v7)反超 cuBLAS **24.5%**(0.02988±0.0001 vs
+0.03721±0.0002 ms,**3 轮 mean±std 已转正**,records/data/
+exp_k01_reduce_3rounds.csv)";
 softmax 26%(4090 aligned 同值,mis 34%);gemv 84% 须带"cuBLAS gemv 该卡
 表现平平"限定或改引 19%(Laptop)保守值。
 
@@ -83,7 +84,8 @@ softmax 26%(4090 aligned 同值,mis 34%);gemv 84% 须带"cuBLAS gemv 该卡
 - **stability 覆盖勘误**:仅 cuda-reduce 有 stability CSV(新旧皆有,
   且旧版含 v7=0.2734 与旧 results 的 1.665 矛盾——矛盾本身入档);
   其余三项目 bench 不产 stability 文件。§4 首版"4090 版已覆盖全版本"
-  的说法错误,已改。整改项:四 bench 补 ≥3 轮 stability 输出。
+  的说法错误,已改。整改项:四 bench 补 ≥3 轮 stability 输出——**reduce 头条已补**(8/24,
+  records/data/exp_k01_reduce_3rounds.csv,24.5%);其余三项目待补。
 
 ## 8. 下游影响
 
