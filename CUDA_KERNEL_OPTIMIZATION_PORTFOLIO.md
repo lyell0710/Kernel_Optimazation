@@ -208,6 +208,16 @@ v4 的踩坑教训特别真实：**vec 已经在 L1 cache 里**（vec 8KB << L1 
 
 ---
 
+## 项目 6：CUDA FA2 forward（wmma 架构税的定量测量，2026-08-24 · 4090）
+
+**算子**：Flash Attention 2 前向（在线 softmax，D=128，causal+GQA），协议对齐自家 Triton 版（B=1,Hq=32,Hkv=8,S=4096）。
+
+**结果**（3 轮，[EXP-K03](records/EXP-K03_cuda_fa2_ladder.md)）：v0 warp-per-row 4.9 → v1 smem tile 5.5（+11%，L2 已扛住广播读）→ v2 wmma **24.4**（×4.5）→ v3 8warp 32.5（+33%）→ v4 cp.async 重叠 **34.8 TFLOPS**（仅 +6.6%）；全 shape 过 2e-2 正确性 gate。
+
+**核心叙述**：项目 5 和项目 6 用同一套 wmma 工具箱得到相反结局——**GEMM 够到 cuBLAS 86%，FA2 只够到自家 Triton 版（123 TF，跨 harness）的 28%**。原因是结构性的：wmma accumulator fragment 的 lane→元素映射未定义，行级 softmax（max/exp/α）被迫走 smem 往返 + 每 tile 5 次 `__syncthreads` 的相位链；v4 把 K/V 访存全部预取重叠后只涨 6.6%，坐实瓶颈不在访存在相位链。**越是靠"融合免搬运"吃饭的算子，越需要 mma 级寄存器控制——这就是 FA2 官方实现用 CUTLASS/mma 而非 wmma 的定量理由**（面试里这条比"我写了个 FA2"值钱得多）。
+
+---
+
 # ═══════════════════════════════════════
 # 跨项目 Pattern 总结（Portfolio 的核武级最后一节）
 # ═══════════════════════════════════════
