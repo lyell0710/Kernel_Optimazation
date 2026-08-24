@@ -28,8 +28,12 @@ stability CSV(mean±std);尺寸与版本矩阵与原仓完全一致(未改任何
 
 ## 4. 原始数据
 
-各 `<project>/project-proof/data/benchmark_results.csv` + `benchmark_stability.csv`
-(本次提交即 4090 版;上一提交即 Laptop 版——版本对 = git 两个 commit)。
+各 `<project>/project-proof/data/benchmark_results.csv`(本次提交即 4090 版;
+上一提交即 Laptop 版——版本对 = git 两个 commit)。
+**勘误(8/24 审计)**:stability CSV 仅 cuda-reduce 项目存在;softmax/gemv/
+int8-quantize 的 bench 不产 stability 文件——4090 头条数字为单轮 100-iter
+均值,**无 ≥3 轮 mean±std 支撑**,按 CORE 降级为"单轮实测",进简历前
+需补 3 轮(整改项)。
 
 ## 5. 结果(末档尺寸,ms;倍率均为同机内比值)
 
@@ -41,11 +45,13 @@ stability CSV(mean±std);尺寸与版本矩阵与原仓完全一致(未改任何
 | gemv | v3 | 0.0128 | 0.0325 | **快 84%**(0.0235/0.0128) | 快 19% |
 | int8-quantize | v4 | 0.0059 | — | vs 仓内 baseline 1.8e4×(见 §7 口径) | — |
 
-**Roofline 迁移(本实验最有价值的发现)**:
-- **reduce v6/v7 排序反转**:Laptop 上 v6/v7 是回退版(1.66ms,慢于 v4/v5
-  的 0.29),4090 上反成最优(0.0296)且**反超 cuBLAS 25%**——同一代码,
-  硬件带宽/SM 配比变了,最优实现随之改变。简历的"与 cuBLAS 差 1.7%"
-  在 4090 上应升级为"快 25%"(版本号从 v4 换 v7,须注明)。
+**Roofline 迁移(本实验最有价值的发现,带勘注)**:
+- **4090 上 v7 最优且反超 cuBLAS 25%(0.0296 vs 0.0371)——这是本机实测,
+  立得住**。但"Laptop 上 v6/v7 是回退版"的说法**存疑**:旧 results CSV
+  记 v7=1.665ms(回退),旧 stability CSV 却记 v7=0.2734ms(全场最快)
+  ——两个旧文件自相矛盾,无法确证 Laptop 端排序。故"排序反转"降级为
+  "4090 端最优版本为 v7(旧数据端不可考)";简历只引 4090 侧
+  "最优实现反超 cuBLAS 25%",不讲反转故事(除非旧机复测)。
 - gemv 领先幅度 19%→84%:一半来自我方提速,一半来自 **cuBLAS gemv 在
   4090 上相对表现变差**(0.0402→0.0235 仅 1.7× 硬件增益,低于其余对照)
   ——对照物状态如实标注,不吹成纯自身优势。
@@ -54,8 +60,10 @@ stability CSV(mean±std);尺寸与版本矩阵与原仓完全一致(未改任何
 
 ## 6. 分析与结论
 
-排序反转假设成立(reduce)。简历数字迁移方案:reduce 347.6ms→0.291ms
-(Laptop 叙事保留)+ 4090 版"最优实现反超 cuBLAS 25%(0.0296 vs 0.0371ms)";
+排序反转假设**不可判定**(旧数据自相矛盾,见 §5 勘注);4090 端结论独立
+成立。简历数字迁移方案:reduce 347.6ms→0.291ms(Laptop 叙事保留)+
+4090 版"最优实现(v7)反超 cuBLAS 25%(0.0296 vs 0.0371ms,单轮,
+补 3 轮后转正)";
 softmax 26%(4090 aligned 同值,mis 34%);gemv 84% 须带"cuBLAS gemv 该卡
 表现平平"限定或改引 19%(Laptop)保守值。
 
@@ -71,8 +79,10 @@ softmax 26%(4090 aligned 同值,mis 34%);gemv 84% 须带"cuBLAS gemv 该卡
 - **整改项(违 CORE bench 铁则)**:本仓 bench 直接覆盖 CSV(trunc 旧值),
   旧值仅靠 git 提交锚定——后续应改 UTC 前缀新文件;本次以"提交对"作
   版本锚,未改 harness(老项目缺哪补哪,不推倒)。
-- reduce 的 stability 旧 CSV 未含 v6/v7 行(彼时回退未入稳定表),4090 版
-  已覆盖全版本。
+- **stability 覆盖勘误**:仅 cuda-reduce 有 stability CSV(新旧皆有,
+  且旧版含 v7=0.2734 与旧 results 的 1.665 矛盾——矛盾本身入档);
+  其余三项目 bench 不产 stability 文件。§4 首版"4090 版已覆盖全版本"
+  的说法错误,已改。整改项:四 bench 补 ≥3 轮 stability 输出。
 
 ## 8. 下游影响
 

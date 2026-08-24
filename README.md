@@ -10,6 +10,12 @@ Kernel optimization playground for handwritten CUDA kernels and benchmark-driven
 - `layernorm/`: reserved for LayerNorm kernel optimization experiments.
 - `notes/`: experiment notes, interview scripts, and retrospective writeups.
 
+## EXP 索引
+
+| 编号 | slug | 日期 | 状态 | 关键数字(指针) |
+|---|---|---|---|---|
+| [EXP-K01](records/EXP-K01_4090_rebench.md) | 4090_rebench | 2026-08-23 | 完成(带 8/24 勘误) | 4090 reduce v7 反超 cuBLAS 25%(单轮);softmax v4 快 26/34%;gemv 84%(对照物限定)→ 各 project-proof/data/ |
+
 ## Suggested Workflow
 1. Build a baseline kernel and iterate versions (`v0`, `v1`, ...).
 2. Keep benchmark settings fixed (input size, warmup, iteration count).
