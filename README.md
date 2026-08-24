@@ -7,6 +7,7 @@ Kernel optimization playground for handwritten CUDA kernels and benchmark-driven
 - `gemv/`: GEMV kernel optimization project (`baseline` -> `v4`).
 - `softmax/`: Softmax kernel optimization project (`baseline` -> `v4`).
 - `int8-quantize/`: INT8 per-channel quantize optimization project (`baseline` -> `v4`).
+- `gemm/`: CUDA Tensor Core GEMM ladder (`v0` naive -> `v4` wmma+cp.async big-tile, vs real cuBLAS).
 - `layernorm/`: reserved for LayerNorm kernel optimization experiments.
 - `notes/`: experiment notes, interview scripts, and retrospective writeups.
 
@@ -15,6 +16,7 @@ Kernel optimization playground for handwritten CUDA kernels and benchmark-driven
 | 编号 | slug | 日期 | 状态 | 关键数字(指针) |
 |---|---|---|---|---|
 | [EXP-K01](records/EXP-K01_4090_rebench.md) | 4090_rebench | 2026-08-23 | 完成(带 8/24 勘误) | 4090 reduce v7 反超 cuBLAS 24.5%(3轮);softmax 对比句作废(对照系自写 kernel,勘误见记录 §5);gemv 84%(对照物限定)→ 各 project-proof/data/ |
+| [EXP-K02](records/EXP-K02_cuda_gemm_tc_ladder.md) | cuda_gemm_tc_ladder | 2026-08-24 | 完成 | Tensor Core GEMM v0→v4:133.1±0.97 TFLOPS = 真 cuBLAS 85.6%(4096³,3轮)→ gemm/project-proof/data/ |
 
 ## Suggested Workflow
 1. Build a baseline kernel and iterate versions (`v0`, `v1`, ...).

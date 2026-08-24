@@ -198,6 +198,16 @@ v4 的踩坑教训特别真实：**vec 已经在 L1 cache 里**（vec 8KB << L1 
 
 ---
 
+## 项目 5：CUDA Tensor Core GEMM（wmma 版本梯，2026-08-24 · 4090）
+
+**算子**：fp16 GEMM 4096³（fp32 累加），对照 = 真 `cublasGemmEx`（调用点验真——项目 2 勘误后的标准动作）。
+
+**结果**（3 轮，[EXP-K02](records/EXP-K02_cuda_gemm_tc_ladder.md)）：v0 naive 5.2 → v1 smem tile 6.5 → v2 wmma **89.5** → v3 cp.async 双缓冲 95.5 → v4 128² 大 tile **133.1 TFLOPS = cuBLAS 85.6%**。
+
+**核心叙述**：① compute-bound 算子的台阶是**指令世代**（v1→v2 ×13.8），访存微调只有 +25%——与项目 1-4 的 memory-bound 世界完全相反，先判 bound 类型再动手（原则 3 的另一半）。② v4 理论 occupancy 33% 全梯最低却最快（92 reg×256thr + 32KB smem，每 SM 仅 2 block）——Tensor Core 吞吐靠 fragment 级 ILP 与 smem 复用，不靠线程数遮蔽延迟。③ 与自家 Triton 版（triton-kernels#EXP-T02，160.5 TFLOPS）对照：Triton 编译器发射 mma+ldmatrix+swizzle，wmma API 不暴露 smem swizzle——**同一硬件上"写 CUDA"不等于"到上限"，API 层级本身是性能变量**（剩余差距归因为推断，NCU 不可用）。
+
+---
+
 # ═══════════════════════════════════════
 # 跨项目 Pattern 总结（Portfolio 的核武级最后一节）
 # ═══════════════════════════════════════

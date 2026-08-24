@@ -1,0 +1,6 @@
+ptxas info    : Function properties for _Z14gemm_v2_kernelPK6__halfS1_PS_iii
+ptxas info    : Used 54 registers, used 1 barriers, 8192 bytes smem, 388 bytes cmem[0]
+ptxas info    : Function properties for _Z14gemm_v3_kernelPK6__halfS1_PS_iii
+ptxas info    : Used 61 registers, used 1 barriers, 16384 bytes smem, 388 bytes cmem[0]
+ptxas info    : Function properties for _Z14gemm_v4_kernelPK6__halfS1_PS_iii
+ptxas info    : Used 92 registers, used 1 barriers, 32768 bytes smem, 388 bytes cmem[0], 8 bytes cmem[2]
