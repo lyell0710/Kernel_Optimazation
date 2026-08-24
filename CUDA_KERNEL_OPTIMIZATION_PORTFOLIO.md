@@ -1,3 +1,9 @@
+> ⛔ **勘误(2026-08-24,红线级)**:本文所有 softmax "vs cuBLAS" 的对比与
+> 归因(含 L2 命中率 2.4 倍、online softmax 推断)**作废**——softmax_cublas.cu
+> 实为自写 kernel,并非 cuBLAS 调用(cuBLAS 无 softmax API)。gemv/reduce 的
+> cuBLAS 对照经验真有效。详见 records/EXP-K01 §5 勘误。简历禁用 softmax
+> 的 cuBLAS 对比句。
+
 # CUDA Kernel 优化 Portfolio
 
 > 四个项目（reduce / softmax / gemv / int8 quantize）的统一入口。

@@ -41,8 +41,8 @@ int8-quantize 的 bench 不产 stability 文件——4090 头条数字为单轮 
 | kernel | 最优版 | 4090 | Laptop | 4090 vs cuBLAS | Laptop vs cuBLAS |
 |---|---|---|---|---|---|
 | reduce | **v7** | 0.0296 | 1.665(旧 results;与旧 stability 0.273 矛盾,存疑) | **快 25%**(0.0371/0.0296) | v4 慢 1.7%(旧 results 口径) |
-| softmax(aligned 1024²) | v4 | 0.0078 | 0.0164 | **快 26%**(0.0098/0.0078) | 快 26% |
-| softmax(mis 1024×1500) | v4 | 0.0099 | 0.0223 | **快 34%**(0.0133/0.0099) | 快 26% |
+| softmax(aligned 1024²) | v4 | 0.0078 | 0.0164 | 快自写参照 26%(0.0098/0.0078,见下勘误) | 同左 |
+| softmax(mis 1024×1500) | v4 | 0.0099 | 0.0223 | 快自写参照 34%(0.0133/0.0099) | 同左 |
 | gemv | v3 | 0.0128 | 0.0325 | **快 84%**(0.0235/0.0128) | 快 19% |
 | int8-quantize | v4 | 0.0059 | — | vs 仓内 baseline 1.8e4×(见 §7 口径) | — |
 
@@ -56,8 +56,16 @@ int8-quantize 的 bench 不产 stability 文件——4090 头条数字为单轮 
 - gemv 领先幅度 19%→84%:一半来自我方提速,一半来自 **cuBLAS gemv 在
   4090 上相对表现变差**(0.0402→0.0235 仅 1.7× 硬件增益,低于其余对照)
   ——对照物状态如实标注,不吹成纯自身优势。
-- softmax 结论稳定(26%→26/34%),misaligned 组扩大——4090 带宽更高,
-  cuBLAS 的 L2 策略优势相对缩水,与 Laptop 时代 NCU 归因(它赢在 L2)自洽。
+- **重大勘误(8/24,红线级)**:softmax 的"cublas"对照**不是 cuBLAS**——
+  `softmax/src/softmax_cublas.cu` 是自写 kernel(注释自曝 "cuBLAS-like
+  patterns";cuBLAS 亦无 softmax API,该命名从源头不成立)。因此
+  "softmax 快 cuBLAS 26%/34%"**全部作废**,降级为"快一个自写优化参照
+  26%/34%"——此表述无对外引用价值,softmax 的简历句只能保留绝对时延与
+  正确性,不得含任何 cuBLAS 对比。旧 PORTFOLIO 中围绕该对照的 L2/online
+  softmax 归因叙事随之作废(那是在归因自家参照 kernel)。
+  **验真结果**:gemv_cublas.cu 与 reduce_cublas.cu 为真库调用
+  (cublasCreate/handle 在源码),gemv 84% 与 reduce 24.5% 的对照有效。
+  违反 CORE 铁律 6(对照物命名诚实)的实例,入方法论教材。
 
 ## 6. 分析与结论
 
@@ -66,8 +74,8 @@ int8-quantize 的 bench 不产 stability 文件——4090 头条数字为单轮 
 4090 版"最优实现(v7)反超 cuBLAS **24.5%**(0.02988±0.0001 vs
 0.03721±0.0002 ms,**3 轮 mean±std 已转正**,records/data/
 exp_k01_reduce_3rounds.csv)";
-softmax 26%(4090 aligned 同值,mis 34%);gemv 84% 须带"cuBLAS gemv 该卡
-表现平平"限定或改引 19%(Laptop)保守值。
+softmax 对比句**撤下**(对照系自写 kernel,见 §5 勘误);gemv 84% 须带
+"cuBLAS gemv 该卡表现平平"限定或改引 19%(Laptop)保守值。
 
 ## 7. 异常、偏差与开放问题
 

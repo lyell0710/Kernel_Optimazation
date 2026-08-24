@@ -17,3 +17,13 @@
   旧值锚 = 上一提交。
 - **下一步**:triton-kernels 仓(FA2/双缓冲 GEMM/三件套移植)开发中,
   Triton vs CUDA 对比将回引本仓同尺寸数字。
+
+## §2 红线级勘误:softmax 的"cuBLAS"对照系自写 kernel(2026-08-24)
+
+- **发现(用户审计)**:softmax_cublas.cu 无任何 cuBLAS 调用,是自写
+  warp 原语 kernel(注释自曝);cuBLAS 本无 softmax API。
+- **影响与处置**:"softmax 快 cuBLAS 26%/34%"全链作废(EXP-K01 表格、
+  README、PORTFOLIO 归因叙事加勘误横幅);简历禁用该句。gemv/reduce 的
+  cublas 验真为真库调用,对照有效。
+- **教训**:对照物命名必须开源码验真,不能信文件名——CORE 铁律 6 的
+  反面教材实锤;后续任何 "vs X" 声明先查 X 的调用点。
