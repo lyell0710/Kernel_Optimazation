@@ -83,3 +83,14 @@
   softmax/project-proof/profiling/ncu/SUMMARY.md。
 - **下一步**:GPU 空闲后按 EXP-K01 §7 backlog 给 softmax/gemv/int8-quantize
   补 UTC 前缀 3 轮 stability;gemm/fa2 v5(mma PTX)技能票不变。
+
+## §5 2026-08-24 晚 · 老三样 stability 闭环 + gemv 84% 降级
+
+- **做了什么**:softmax/gemv/int8 各 3 轮(stability_rebench.sh);聚合入
+  records/data/;EXP-K01 §7 闭环。
+- **关键数字**:gemv v3 快 cuBLAS 37.8%(3 轮)——单轮 84% 不可复现,系
+  cuBLAS 对照单轮波动(0.0235→0.0174);softmax v4 快自研参照 23.3%;
+  int8 v4 5.57µs。
+- **教训**:对照物也要 3 轮;单轮领先幅度可能一半是对照的坏轮。
+- **产物**:9 份 UTC raw + 3 份 3rounds 聚合 + 记录/README/PORTFOLIO 同步。
+- **下一步**:无(本仓 backlog 清零;v5 mma 技能票仍为可选项)。

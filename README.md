@@ -15,7 +15,7 @@ Kernel optimization playground for handwritten CUDA kernels and benchmark-driven
 
 | 编号 | slug | 日期 | 状态 | 关键数字(指针) |
 |---|---|---|---|---|
-| [EXP-K01](records/EXP-K01_4090_rebench.md) | 4090_rebench | 2026-08-23 | 完成(带 8/24 勘误) | 4090 reduce v7 反超 cuBLAS 24.5%(3轮);softmax 对比句作废(对照系自写 kernel,勘误见记录 §5);gemv 84%(对照物限定,**单轮**;3 轮补测=记录 §7 backlog,待 GPU 空闲)→ 各 project-proof/data/ |
+| [EXP-K01](records/EXP-K01_4090_rebench.md) | 4090_rebench | 2026-08-23 | 完成(带 8/24 勘误) | 4090 reduce v7 反超 cuBLAS 24.5%(3轮);softmax 对比句作废(对照系自写 kernel,勘误见记录 §5);gemv v3 快 cuBLAS **37.8%**(3 轮;单轮 84% 不可复现——cuBLAS 侧波动,勘误见 §7 闭环)→ 各 project-proof/data/ |
 | [EXP-K02](records/EXP-K02_cuda_gemm_tc_ladder.md) | cuda_gemm_tc_ladder | 2026-08-24 | 完成 | Tensor Core GEMM v0→v4:133.1±0.97 TFLOPS = 真 cuBLAS 85.6%(4096³,3轮)→ gemm/project-proof/data/ |
 | [EXP-K03](records/EXP-K03_cuda_fa2_ladder.md) | cuda_fa2_ladder | 2026-08-24 | 完成 | CUDA FA2 v0→v4:34.8±0.12 TFLOPS = 自家 Triton 28%(跨harness),wmma 架构税量化 → flash-attn/project-proof/data/ |
 

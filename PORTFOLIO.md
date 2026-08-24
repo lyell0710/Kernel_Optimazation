@@ -162,7 +162,7 @@ v4 的踩坑教训特别真实：**vec 已经在 L1 cache 里**（vec 8KB << L1 
 
 | 指标 | v3 | v4 | 含义 |
 |---|---|---|---|
-| DRAM% | 84% | 85% | 接近算子上限（dtype 不对称导致 85% 是天花板）|
+| DRAM% | 37.8%(3 轮) | 85% | 接近算子上限（dtype 不对称导致 85% 是天花板）|
 | **L2Hit%** | **32%** | **2.15%** | **暴跌但 latency 更快** |
 | StallLSB% | 79% | 82% | SM 越来越闲，越来越纯等 HBM |
 | 时延 | 0.0075ms | **0.0066ms** | 快 12% |
@@ -211,7 +211,7 @@ v4 的踩坑教训特别真实：**vec 已经在 L1 cache 里**（vec 8KB << L1 
 - ✅ reduce v0→v2：bank conflict 砍 50%，时延几乎不变
 - ✅ softmax v0→v2：bank conflict 砍 70%，时延只省 2%
 - ✅ gemv v0→v2：Sec/Ld 变差，时延反而略降（HBM 等待掩盖了 ALU 的变差）
-- ❌ **quantize v0→v1：位运算优化把 DRAM% 从 61% 拉到 84%**——这是反例！
+- ❌ **quantize v0→v1：位运算优化把 DRAM% 从 61% 拉到 37.8%(3 轮)**——这是反例！
 
 **反例的解释**：quantize 是 **memory-bound + 简单 ALU**，指令路径短（没有 syncthreads 这种大头），所以 ALU 端的小优化才能浮上来。reduce / softmax / gemv 的指令路径里夹着 syncthreads，那些才是大头，v1 的几个 cycle 完全被掩盖。
 

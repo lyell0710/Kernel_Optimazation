@@ -107,3 +107,22 @@ softmax 对比句**撤下**(对照系自写 kernel,见 §5 勘误);gemv 84% 须�
 - 面试素材改为两条:①4090 上 v7 反超 cuBLAS 25%(实测硬);②旧数据
   自相矛盾被审计抓出并如实降级——"数据考古的诚实处理"本身是素材。
 - int8 的 PyTorch-eager 4090 对照 → triton-kernels#EXP-T03 一并出。
+
+## §7 整改闭环(2026-08-24 晚:三项目 ≥3 轮 stability 补测)
+
+工装 `scripts/stability_rebench.sh`(UTC 前缀+provenance,既有 raw 原样复位);
+raw = 各 `project-proof/data/2026*_stability_r{1,2,3}.csv`,聚合 =
+`records/data/exp_k01_{softmax,gemv,int8_quantize}_3rounds.csv`。
+
+- **gemv:"快 84%" 单轮值不可复现,降级为"快 37.8%(3 轮)"**。v3 自身完全
+  复现(0.012651±0.000031 vs 单轮 0.012818),但 cuBLAS 对照从单轮 0.02353
+  变为 3 轮 0.017432±0.000169(−26%)——领先幅度的一半以上原系 cuBLAS 侧
+  单轮波动。§5 表的 84% 作废,现行口径 = **v3 比 cuBLAS gemv 快 37.8%
+  (4096×2048,3 轮)**;cuBLAS 侧单轮为何慢 35% 未剖(冷启动/时钟态候选),
+  列开放问题。§6 "领先 19%→84%" 的归因叙事一并作废。
+- softmax:v4 0.007691±0.000153 vs handwritten_ref 0.009482±0.000133
+  (快 23.3%,3 轮;对照系自研 warp 参照,非 cuBLAS——勘误口径不变)。
+- int8-quantize:v4 0.005570±0.000031 ms(单轮 0.0059 复现向好),
+  baseline 104.487±0.028 ms → 1.88e4×。
+- 教训写进方法论:**对照物也要 3 轮**——自家 kernel 稳定不代表对照稳定,
+  单轮领先幅度里可能一半是对照的坏轮。
