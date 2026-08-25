@@ -12,8 +12,9 @@
 |---|---|---|
 | Tensor Core GEMM | **133.1±0.97 TFLOPS**,为真 cuBLAS 的 85.6%(4096³,fp16 输入 / fp32 累加;wmma + cp.async 双缓冲 + 128x128 tile) | [EXP-K02](records/EXP-K02_cuda_gemm_tc_ladder.md),`gemm/project-proof/data/derived_gemm4096_stability.csv` |
 | FA2 forward | **34.8±0.12 TFLOPS**(S=4096,D=128,causal+GQA,全 shape 通过 2e-2 正确性 gate);为同协议 Triton 版的 28%(跨 harness,推断级),即 wmma 架构税的定量测量 | [EXP-K03](records/EXP-K03_cuda_fa2_ladder.md),`flash-attn/project-proof/data/derived_fa2_proto_stability.csv` |
-| reduce | v7 反超真 cuBLAS **24.5%**(0.02988±0.00011 vs 0.03721±0.00022 ms,1600 万 float);端到端 347.6 ms 至 0.291 ms,约 1193x(4070 Laptop 口径) | [EXP-K01](records/EXP-K01_4090_rebench.md),`records/data/exp_k01_reduce_3rounds.csv` |
-| gemv | v3 比真 cuBLAS gemv 快 **37.8%**(4096x2048;对照双方各 3 轮,单轮曾测得 84%,复测不成立,见测量方法) | [EXP-K01](records/EXP-K01_4090_rebench.md),`records/data/exp_k01_gemv_3rounds.csv` |
+| reduce | HBM-bound 区间(1.07 GB)v7 达 HBM 理论峰值 **93.9%**(946.2 GB/s),与官方 CUB 差 **0.7%**;L2 常驻区间(67 MB)CUB 快 33.3%;端到端 347.6 ms 至 0.291 ms,约 1193x(4070 Laptop 口径) | [EXP-K04](records/EXP-K04_standard_library_baselines.md),`records/data/exp_k04_reduce_hbmbound_3rounds.csv` |
+| softmax | 对齐 1024x1024 比 cuDNN 快 **6.7%**(0.007768 vs 0.008291 ms,3 轮);非对齐 1024x1500 反被 cuDNN 快 9.9% —— 手写的形状敏感性代价 | [EXP-K04](records/EXP-K04_standard_library_baselines.md),`records/data/exp_k04_softmax_3rounds.csv` |
+| gemv | v3 比真 `cublasSgemv` 快 **34.1%**(4096x2048,3 轮;前一轮同协议 37.8%,差异来自 cuBLAS 侧轮间波动) | [EXP-K04](records/EXP-K04_standard_library_baselines.md),`records/data/exp_k04_gemv_3rounds.csv` |
 | int8 quantize | v4 **5.57±0.03 µs**(1024² per-channel symmetric);单 kernel 融合较 PyTorch eager 快 6.6x(4070 Laptop 口径,单轮) | [EXP-K01](records/EXP-K01_4090_rebench.md),`records/data/exp_k01_int8_quantize_3rounds.csv` |
 
 ![GEMM Tensor Core 版本梯](figures/01_gemm_tc_ladder.png)
@@ -24,9 +25,9 @@
 
 *图 2:同一套 wmma 工具箱,FA2 只到 34.8 TFLOPS;v4 把 K/V 访存全部预取重叠后仅 +6.6%,说明瓶颈在 shared memory 往返的相位链而非访存。(数据:`flash-attn/project-proof/data/derived_fa2_proto_stability.csv`;脚本:`scripts/plot_readme_figures.py`)*
 
-![reduce v7 vs 真 cuBLAS](figures/03_reduce_v7_vs_cublas.png)
+![reduce 两区间对照](figures/03_reduce_two_regimes.png)
 
-*图 3:单一 shape 特化的 grid-stride two-pass(v7)反超真 cuBLAS 24.5%(3 轮,对照物经调用点验真)。(数据:`records/data/exp_k01_reduce_3rounds.csv`;脚本:`scripts/plot_readme_figures.py`)*
+*图 3:同一算子在两个区间的不同结局——HBM-bound 时手写 v7 与官方 CUB 同贴理论峰值(93.9% vs 94.5%),L2 常驻时 CUB 快 33.3%。(数据:`records/data/exp_k04_reduce_hbmbound_3rounds.csv`;脚本:`scripts/plot_readme_figures.py`)*
 
 图表全部由脚本从原始数据生成(matplotlib):`python scripts/plot_readme_figures.py`。
 
@@ -38,7 +39,7 @@
 
 **理论 occupancy 33% 为全梯最低,却是最快版本。** gemm v4 每线程 92 寄存器 x 256 线程 + 32KB smem,每 SM 只驻 2 个 block;但 4x2=8 个 accumulator fragment 常驻寄存器、一次 load 参与多次 `mma_sync`,Tensor Core 吞吐靠 fragment 级 ILP 与 smem 复用喂满,不靠线程数遮蔽延迟。occupancy 是手段,不是目标。
 
-**指标与单轮数字都只是现象,结论依赖交叉验证。** int8 quantize v4 的 L2 命中率从 32% 跌至 2% 反而更快:char4 整字覆盖消除了逐字节 store 触发的 read-modify-write 补偿读,命中计数下降的同时实际访存量减少。gemv 曾单轮测得领先 84%,让对照物同样跑 3 轮后回落到 37.8%——领先幅度的一半来自 cuBLAS 侧的单轮波动。profiler 指标要配合时延趋势反推机制,领先幅度要配合对照物的方差才算数。
+**指标与单轮数字都只是现象,结论依赖交叉验证。** int8 quantize v4 的 L2 命中率从 32% 跌至 2% 反而更快:char4 整字覆盖消除了逐字节 store 触发的 read-modify-write 补偿读,命中计数下降的同时实际访存量减少。gemv 曾单轮测得领先 84%,让对照物同样跑 3 轮后回落到 34%——领先幅度的一半来自 cuBLAS 侧的单轮波动。profiler 指标要配合时延趋势反推机制,领先幅度要配合对照物的方差才算数。
 
 ## 代码导览
 

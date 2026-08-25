@@ -6,8 +6,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SHA=$(git -C "$ROOT" rev-parse --short HEAD)
 DRV=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -1)
-declare -A BIN=( [softmax]=softmax_bench [gemv]=gemv_bench [int8-quantize]=int8_quantize_bench )
-for proj in softmax gemv int8-quantize; do
+declare -A BIN=( [softmax]=softmax_bench [gemv]=gemv_bench [int8-quantize]=int8_quantize_bench [cuda-reduce]=reduce_bench )
+for proj in softmax gemv int8-quantize cuda-reduce; do
   cd "$ROOT/$proj"
   cmake -S . -B build -DCMAKE_BUILD_TYPE=Release >/dev/null && cmake --build build -j >/dev/null
   CSV=project-proof/data/benchmark_results.csv

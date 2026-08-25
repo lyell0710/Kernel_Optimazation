@@ -126,3 +126,11 @@ raw = 各 `project-proof/data/2026*_stability_r{1,2,3}.csv`,聚合 =
   baseline 104.487±0.028 ms → 1.88e4×。
 - 教训写进方法论:**对照物也要 3 轮**——自家 kernel 稳定不代表对照稳定,
   单轮领先幅度里可能一半是对照的坏轮。
+
+## §8 口径作废(EXP-K04 取代)
+
+本记录 §5/§7 的 reduce 结论「v7 反超真 cuBLAS 24.5%」**不再作为对外口径**:
+①对照 `cublasSasum` 与被测 Σx 并非同一算子;②该测量规模(67.1 MB)小于 4090 的
+72 MB L2,处于 L2 常驻区间而非 HBM-bound。同算子基准(CUB)与两区间数据见
+[EXP-K04](EXP-K04_standard_library_baselines.md)。gemv 37.8% 亦由 EXP-K04 的
+34.1%(新一轮)取代,差异为 cuBLAS 侧轮间波动。

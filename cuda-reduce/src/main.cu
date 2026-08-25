@@ -11,7 +11,14 @@
 
 int main()
 {
-    const int N = 1 << 24;
+    // 尺寸可配(REDUCE_N):默认 1<<24 = 67.1 MB —— 注意该尺寸 < RTX 4090 的
+    // 72 MB L2,整个数组常驻 L2,测得的是 L2 带宽而非 HBM 带宽(实测等效带宽
+    // 达 HBM 峰值的 2-3 倍即为此故)。要测 HBM-bound 区间需 N >= 1<<28(1.07 GB)。
+    int N = 1 << 24;
+    if (const char* env_n = std::getenv("REDUCE_N")) {
+        const long long v = std::atoll(env_n);
+        if (v > 0) N = static_cast<int>(v);
+    }
     int kBenchmarkIters = 100;
     if (const char* env_iters = std::getenv("BENCH_ITERS"))
     {
@@ -142,7 +149,15 @@ int main()
     float v7_gpu = 0.0f, v7_ms = 0.0f;
     float cublas_gpu = 0.0f, cublas_ms = 0.0f;
 
-    bench_reduce("baseline", reduce_baseline, baseline_gpu, baseline_ms);
+    // 大尺寸(HBM-bound)下单线程 baseline 每轮需数分钟,用 REDUCE_SKIP_BASELINE=1 跳过;
+
+    // 跳过时 baseline_ms 记 0,加速比列在 CSV 里失去意义,由分析脚本忽略该行。
+
+    if (std::getenv("REDUCE_SKIP_BASELINE") == nullptr) {
+
+        bench_reduce("baseline", reduce_baseline, baseline_gpu, baseline_ms);
+
+    }
     bench_reduce("v0", reduce_v0, v0_gpu, v0_ms);
     bench_reduce("v1", reduce_v1, v1_gpu, v1_ms);
     bench_reduce("v2", reduce_v2, v2_gpu, v2_ms);
@@ -152,6 +167,8 @@ int main()
     bench_reduce("v6", reduce_v6, v6_gpu, v6_ms);
     bench_reduce("v7", reduce_v7, v7_gpu, v7_ms);
     bench_reduce("cuBLAS", reduce_cublas, cublas_gpu, cublas_ms);
+    float cub_gpu = 0.0f, cub_ms = 0.0f;
+    bench_reduce("CUB", reduce_cub, cub_gpu, cub_ms);   // 同算子标准库基准
 
     // overwrite CSV with the latest averaged benchmark results.
     std::ofstream csv_out(kCsvPath, std::ios::trunc);
@@ -194,6 +211,7 @@ int main()
         write_row("v6", v6_gpu, v6_diff, v6_ms);
         write_row("v7", v7_gpu, v7_diff, v7_ms);
         write_row("cuBLAS", cublas_gpu, cublas_diff, cublas_ms);
+        write_row("CUB", cub_gpu, std::fabs(cpu - cub_gpu), cub_ms);
 
         std::cout << "Updated CSV: " << kCsvPath << std::endl;
     }

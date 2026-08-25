@@ -13,3 +13,4 @@ void reduce_cublas(const float* data, float* output, int n);
 
 
 float cpu_reduce(const float* data, int n);
+void reduce_cub(const float* data, float* output, int n);   // 标准库基准(CUB DeviceReduce::Sum)

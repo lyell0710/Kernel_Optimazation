@@ -3,7 +3,7 @@
 
   01_gemm_tc_ladder.png       <- gemm/project-proof/data/derived_gemm4096_stability.csv
   02_fa2_wmma_ladder.png      <- flash-attn/project-proof/data/derived_fa2_proto_stability.csv (S=4096)
-  03_reduce_v7_vs_cublas.png  <- records/data/exp_k01_reduce_3rounds.csv
+  03_reduce_two_regimes.png   <- records/data/exp_k04_reduce_hbmbound_3rounds.csv + exp_k04_cuda_reduce_3rounds.csv
 
 用法: /root/venvs/kernel-opt/bin/python scripts/plot_readme_figures.py
 """
@@ -121,26 +121,48 @@ fig.savefig(os.path.join(FIGDIR, "02_fa2_wmma_ladder.png"), dpi=DPI,
             facecolor="white")
 plt.close(fig)
 
-# ---- 图 3:reduce v7 vs 真 cuBLAS(3 轮) -------------------------------
-rows = read_csv(os.path.join(ROOT, "records/data/exp_k01_reduce_3rounds.csv"))
-name_map = {"v7": "v7(grid-stride two-pass)",
-            "cuBLAS": "cuBLAS(真库调用)", "v4": "v4(中间版本参照)"}
-labels = [name_map[r["version"]] for r in rows]
-means = [float(r["mean_ms"]) for r in rows]
-stds = [float(r["std_ms"]) for r in rows]
-colors = {"v7": C_BEST, "cuBLAS": C_BASE, "v4": C_NEUT}
-colors = [colors[r["version"]] for r in rows]
-fig, ax = plt.subplots(figsize=(8.6, 2.9))
+# ---- 图 3:reduce 两区间(HBM-bound vs L2-resident)-----------------------
+# 同一算子在两个数据规模下的不同结局:真正 DRAM-bound 时手写与官方库同贴峰值;
+# 数据装进 L2 后,厂商库的调参优势才显出来。
+hb = read_csv(os.path.join(ROOT, "records/data/exp_k04_reduce_hbmbound_3rounds.csv"))
+hbm = {r["version"]: r for r in hb}
+l2 = {r["key"].split("|")[0]: r for r in
+      read_csv(os.path.join(ROOT, "records/data/exp_k04_cuda_reduce_3rounds.csv"))}
+
+PEAK = 1008.1  # GB/s,由 memclk 10.5 GHz x 384-bit 实测参数算出
+order = ["CUB", "v7", "cuBLAS", "v4", "v0"]
+disp = {"CUB": "CUB(官方,同算子)", "v7": "v7(自写最优)",
+        "cuBLAS": "cuBLAS Sasum(异算子)", "v4": "v4(中间版本)", "v0": "v0(朴素并行)"}
+colr = {"CUB": C_BASE, "v7": C_BEST, "cuBLAS": C_NEUT, "v4": C_NEUT, "v0": C_NEUT}
+
+fig, axes = plt.subplots(1, 2, figsize=(12.4, 3.4))
 fig.patch.set_facecolor("white")
-style_ax(ax)
-hbar(ax, labels, means, stds, colors, lambda m, s: f"{m:.5f}±{s:.5f} ms")
-ax.set_xlabel("时延 ms(1600 万 float 求和,越低越好)", fontsize=9)
-ax.set_title("reduce v7 反超真 cuBLAS 24.5%(4090,3 轮 mean±std)",
-             fontsize=11.5, pad=10)
-footnote(fig, "source: records/data/exp_k01_reduce_3rounds.csv"
-              " · RTX 4090 · N=1<<24 · 3 轮 mean±std · EXP-K01")
-fig.tight_layout(rect=(0, 0.05, 1, 1))
-fig.savefig(os.path.join(FIGDIR, "03_reduce_v7_vs_cublas.png"), dpi=DPI,
+
+ax = axes[0]; style_ax(ax)
+labels = [disp[k] for k in order]
+pcts = [float(hbm[k]["pct_of_hbm_peak"].rstrip("%")) for k in order]
+stds = [0.0 for _ in order]
+hbar(ax, labels, pcts, stds, [colr[k] for k in order], lambda m, s: f"{m:.1f}%")
+ax.axvline(100, color="#999", lw=1, ls=":")
+ax.set_xlim(0, 112)
+ax.set_xlabel("占 HBM 理论峰值 1008.1 GB/s 的比例", fontsize=9)
+ax.set_title("HBM-bound(1.07 GB):手写 v7 与官方 CUB 同贴峰值,差 0.7%",
+             fontsize=10.5, pad=8)
+
+ax = axes[1]; style_ax(ax)
+k2 = ["CUB", "v7", "cuBLAS"]
+lab2 = [disp[k] for k in k2]
+m2 = [float(l2[k]["latency_ms_mean"]) * 1e3 for k in k2]     # 转 µs
+s2 = [float(l2[k]["latency_ms_std"]) * 1e3 for k in k2]
+hbar(ax, lab2, m2, s2, [colr[k] for k in k2], lambda m, s: f"{m:.1f}±{s:.1f} µs")
+ax.set_xlabel("时延 µs(67 MB 数组,越低越好)", fontsize=9)
+ax.set_title("L2 常驻(67 MB < 72 MB L2):CUB 快 33.3%",
+             fontsize=10.5, pad=8)
+
+footnote(fig, "source: records/data/exp_k04_reduce_hbmbound_3rounds.csv 与 "
+              "exp_k04_cuda_reduce_3rounds.csv · RTX 4090 · 3 轮 mean±std · EXP-K04")
+fig.tight_layout(rect=(0, 0.06, 1, 1))
+fig.savefig(os.path.join(FIGDIR, "03_reduce_two_regimes.png"), dpi=DPI,
             facecolor="white")
 plt.close(fig)
 

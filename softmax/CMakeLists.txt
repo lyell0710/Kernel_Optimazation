@@ -18,6 +18,7 @@ add_executable(softmax_bench
     src/softmax_v2.cu
     src/softmax_v3.cu
     src/softmax_v4.cu
+    src/softmax_cudnn.cu
     src/softmax_v4_2.cu
     src/softmax_v4_3.cu
     src/softmax_v4_4.cu
@@ -25,3 +26,11 @@ add_executable(softmax_bench
 )
 
 target_link_libraries(softmax_bench PRIVATE cublas)
+
+# 标准库基准 cuDNN:头文件取自 venv 内 nvidia-cudnn 包,运行库为系统 libcudnn.so.9
+target_include_directories(softmax_bench PRIVATE
+    /root/venvs/v0.25.1/lib/python3.12/site-packages/nvidia/cudnn/include)
+# 系统只提供带版本号的 .so(无 libcudnn.so 符号链),直接按全路径链接
+find_library(CUDNN_LIB NAMES libcudnn.so.9 cudnn
+             PATHS /usr/lib/x86_64-linux-gnu REQUIRED)
+target_link_libraries(softmax_bench PRIVATE ${CUDNN_LIB})

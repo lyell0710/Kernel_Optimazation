@@ -146,6 +146,10 @@ int main()
             {
                 run_and_check("v4.4", softmax_v4_4, mean_ms, max_diff);
             }
+            else if (std::strcmp(profile_only, "cudnn") == 0)
+            {
+                run_and_check("cudnn", softmax_cudnn, mean_ms, max_diff);
+            }
             else if (std::strcmp(profile_only, "cublas") == 0)
             {
                 run_and_check("cublas", softmax_cublas, mean_ms, max_diff);
@@ -175,6 +179,7 @@ int main()
     float v4_2_ms = 0.0f, v4_2_diff = 0.0f;
     float v4_4_ms = 0.0f, v4_4_diff = 0.0f;
     float cublas_ms = 0.0f, cublas_diff = 0.0f;
+    float cudnn_ms = 0.0f, cudnn_diff = 0.0f;
 
     run_and_check("v0", softmax_v0, v0_ms, v0_diff);
     run_and_check("v1", softmax_v1, v1_ms, v1_diff);
@@ -183,7 +188,8 @@ int main()
     run_and_check("v4", softmax_v4, v4_ms, v4_diff);
     run_and_check("v4.2", softmax_v4_2, v4_2_ms, v4_2_diff);
     run_and_check("v4.4", softmax_v4_4, v4_4_ms, v4_4_diff);
-    run_and_check("cublas", softmax_cublas, cublas_ms, cublas_diff);
+    run_and_check("handwritten_ref", softmax_cublas, cublas_ms, cublas_diff);
+    run_and_check("cudnn", softmax_cudnn, cudnn_ms, cudnn_diff);   // 标准库基准
 
     // ===== 第二组 benchmark：misaligned cols=1500 =====
     // 1500 卡在 blockSize*packSize (1024) 的"中间"：
@@ -245,10 +251,12 @@ int main()
     float v4_3_mis_ms = 0.0f, v4_3_mis_diff = 0.0f;
     float v4_4_mis_ms = 0.0f, v4_4_mis_diff = 0.0f;
     float cublas_mis_ms = 0.0f, cublas_mis_diff = 0.0f;
+    float cudnn_mis_ms = 0.0f, cudnn_mis_diff = 0.0f;
     run_mis("v4", softmax_v4, v4_mis_ms, v4_mis_diff);
     run_mis("v4.3", softmax_v4_3, v4_3_mis_ms, v4_3_mis_diff);
     run_mis("v4.4", softmax_v4_4, v4_4_mis_ms, v4_4_mis_diff);
-    run_mis("cublas", softmax_cublas, cublas_mis_ms, cublas_mis_diff);
+    run_mis("handwritten_ref", softmax_cublas, cublas_mis_ms, cublas_mis_diff);
+    run_mis("cudnn", softmax_cudnn, cudnn_mis_ms, cudnn_mis_diff);
 
     cudaFree(d_in_mis);
     cudaFree(d_out_mis);
@@ -272,7 +280,8 @@ int main()
         write_row("v3", v3_ms, v3_diff);
         write_row("v4", v4_ms, v4_diff);
         write_row("v4.2", v4_2_ms, v4_2_diff);
-        write_row("cublas", cublas_ms, cublas_diff);
+        write_row("handwritten_ref", cublas_ms, cublas_diff);
+        write_row("cudnn", cudnn_ms, cudnn_diff);
 
         // misaligned (cols=1000) 行：单独标记，speedup 用 v4 misaligned 作为基准
         auto write_mis = [&](const char* version, float latency_ms, float diff) {
@@ -287,7 +296,8 @@ int main()
         write_mis("v4_mis", v4_mis_ms, v4_mis_diff);
         write_mis("v4.3_mis", v4_3_mis_ms, v4_3_mis_diff);
         write_mis("v4.4_mis", v4_4_mis_ms, v4_4_mis_diff);
-        write_mis("cublas_mis", cublas_mis_ms, cublas_mis_diff);
+        write_mis("handwritten_ref_mis", cublas_mis_ms, cublas_mis_diff);
+        write_mis("cudnn_mis", cudnn_mis_ms, cudnn_mis_diff);
         std::cout << "Updated benchmark CSV: " << kCsvPath << std::endl;
     }
     else
