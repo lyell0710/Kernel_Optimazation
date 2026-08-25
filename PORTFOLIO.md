@@ -12,7 +12,7 @@
 
 任何 GPU 优化的第一步是 `ncu`,不是猜测。每个项目都有一次 profiler 推翻预判的记录:
 
-- reduce:旧一代(Laptop)记录曾主张「v6/v7 grid-stride 慢 6x」——该叙事按 [EXP-K01 §5](records/EXP-K01_4090_rebench.md) 降级为「旧数据不可确证,不作主张」;4090 现行结论是 v7 反超真 cuBLAS 24.5%(3 轮)。原始过程稿见 docs/archive/。
+- reduce:旧一代(Laptop)记录曾主张「v6/v7 grid-stride 慢 6x」——该叙事按 [EXP-K01 §5](records/EXP-K01_4090_rebench.md) 降级为「旧数据不可确证,不作主张」;4090 现行结论见下文两区间表([EXP-K04](records/EXP-K04_standard_library_baselines.md))。同一算子的测量口径也被推翻过一次:经典 1600 万元素(67.1 MB)配置在 L2 达 72 MB 的 4090 上测到的是 L2 带宽而非 HBM 带宽——等效带宽超过理论峰值即是判据。原始过程稿见 docs/archive/。
 - softmax:原「v4 比 cuBLAS 快 26%,NCU 显示 cuBLAS L2 命中率 2.4 倍」整段撤销——对照物经源码核查实为自写 kernel(EXP-K01 §5),归因对象并非 cuBLAS。
 - gemv:v4 用 shared memory 缓存 vec 反而慢一倍,NCU 显示 BankSt 升至 13820(v3 为 0)——vec 被从 L1 多搬了一次。
 - quantize:v4 的 char4 store 使 L2 命中率从 32% 跌至 2%,时延反而更快——原因是消除了 read-modify-write 的补偿读。
@@ -44,29 +44,49 @@ kernel 的整体性能由最慢链路决定;前段再快,被一个 `__syncthread
 
 ## 项目拆解
 
-### reduce:单一 shape 特化反超真 cuBLAS
+### reduce:两个区间,两个结论
 
-算子:1600 万个 float 求和。
+算子:float 数组求和(Σx)。对照物是官方 **CUB `DeviceReduce::Sum`**(随 toolkit 分发的同算子官方实现);此前用的 `cublasSasum` 算的是 Σ|x|,并非同一个算子,该对照口径不再使用。
 
-结果(RTX 4090,3 轮 mean±std,[EXP-K01](records/EXP-K01_4090_rebench.md),原始数据 `records/data/exp_k01_reduce_3rounds.csv`):
+结果(RTX 4090,3 轮 mean±std,[EXP-K04](records/EXP-K04_standard_library_baselines.md),原始数据 `records/data/exp_k04_reduce_hbmbound_3rounds.csv` 与 `records/data/exp_k04_cuda_reduce_3rounds.csv`):
 
-| 版本 | 时延(ms,mean±std) | 说明 |
-|---|---|---|
-| v7 | **0.02988±0.00011** | 自写最优,反超真 cuBLAS 24.5% |
-| cuBLAS(真库调用,调用点验真) | 0.03721±0.00022 | 通用库基准 |
-| v4 | 0.05693±0.00037 | 中间版本参照 |
+| 区间 | 版本 | 时延(ms,mean±std) | 等效带宽 | 占 HBM 理论峰值(1008.1 GB/s) |
+|---|---|---|---|---|
+| HBM-bound(1.07 GB) | CUB | 1.12730±0.00013 | 952.5 GB/s | 94.5% |
+| | v7(自写最优) | 1.13483±0.00023 | 946.2 GB/s | **93.9%** |
+| | cuBLAS Sasum(异算子,仅作参照) | 1.14722±0.00103 | 935.9 GB/s | 92.8% |
+| | v6 / v4 / v0 | 1.161 / 1.452 / 1.807 | 924.9 / 739.6 / 594.3 GB/s | 91.7 / 73.4 / 59.0% |
+| L2 常驻(67.1 MB) | CUB | 0.019828±0.000098 | (超理论峰值) | 不适用 |
+| | v7 | 0.029740±0.000124 | (超理论峰值) | 不适用 |
+| | cuBLAS Sasum | 0.037181±0.000079 | (超理论峰值) | 不适用 |
+
+两个区间给出两个方向相反的结论:
+
+- **真正 DRAM-bound 时,手写与官方库同贴一堵物理墙。** 1.07 GB 数组远大于 4090 的 72 MB L2,v7 与 CUB 分别跑到理论峰值的 93.9% 与 94.5%,**相差 0.7%**。代码优劣的空间被同一条 DRAM 带宽线压到百分之一量级——这类算子的正确目标是逼近峰值,不是超越对手。
+- **数据装进 L2 后,厂商库的调参优势才显现:CUB 快 33.3%。** 67.1 MB 小于 L2 容量,瓶颈从 DRAM 带宽回到延迟隐藏、展开度、tile 尺寸与两阶段规约策略,CUB 按架构分派的 tuning 正是为此存在。自写 kernel 想追平,要做的是分尺寸调参,而不是再省一次访存。
+
+L2 常驻区间三个版本的等效带宽都是理论峰值的 1.8 至 3.4 倍,这本身就证明数据没有落到 DRAM;该区间只报时延不报带宽占比,报了即错。带宽类结论必须先过「等效带宽对理论峰值」这一步合理性检查,否则会把 L2 带宽当成 HBM 带宽汇报——本文早期跨机比较里出现的版本排序变化,更可能的解释就是两台机器不在同一区间。
 
 旧一代数据的处理:本节旧稿以 4070 Laptop 数字立论(baseline 348 ms、「v6/v7 grid-stride 慢 6x 教学反例」及其 NCU 归因与 CUB/Thrust 行业延伸)。复查发现 Laptop 端 v7 在两份数据文件中自相矛盾(1.665 ms vs 0.273 ms),「v6/v7 回退、4090 反转」的叙事不可确证、不作主张(EXP-K01 §5);旧稿全文移 docs/archive/ 留痕,其中数字不对外引用。唯一例外:端到端口径「347.6 ms 至 0.291 ms,约 1193x」为 4070 Laptop 测量,引用时必须带 Laptop 定语。Laptop 时代的 NCU 机理参照(Sec/Ld=4 证明 coalescing 未坏等)保留在归档稿与 `artifacts/ncu_for_mac/`。
 
-现行结论:4090 上 v7(grid-stride two-pass)为全场最快并反超真 cuBLAS 24.5%(3 轮);对照物经调用点验真(`reduce_cublas.cu` 为真库调用)。
+现行结论:4090 上 v7(grid-stride two-pass)在 HBM-bound 区间达 HBM 理论带宽的 93.9%,与官方 CUB 差 0.7%;L2 常驻区间 CUB 快 33.3%(均 3 轮)。所有标注库名的对照均经调用点验真。
 
 深挖材料:`cuda-reduce/project-proof/docs/interview-analysis-v7.md`。
 
-### softmax:控制变量法归因,对照物更正后重述
+### softmax:与 cuDNN 的形状敏感性,加控制变量法归因
 
 算子:1024x1024 fp32 矩阵逐行做 softmax。
 
-对照物更正:本节旧稿头条「v4 比 cuBLAS 快 26%」及全部 vs-cuBLAS 归因(L2 命中率 2.4 倍、online softmax 推断、行业延伸)作废——对照物 `softmax_cublas.cu` 经源码核查系自写 warp 原语 kernel,并非 cuBLAS(cuBLAS 无 softmax API;EXP-K01 §5)。作废段落移 docs/archive/ 留痕;本项目不提供任何对照库比较。
+对照物更正:本节旧稿头条「v4 比 cuBLAS 快 26%」及全部 vs-cuBLAS 归因(L2 命中率 2.4 倍、online softmax 推断、行业延伸)作废——对照物 `softmax_cublas.cu` 经源码核查系自写 warp 原语 kernel,并非 cuBLAS(cuBLAS 无 softmax API;EXP-K01 §5)。作废段落移 docs/archive/ 留痕,其中数字不对外引用;该文件在仓内已改名 `handwritten_ref`。
+
+标准库对照:softmax 不在 BLAS 规范内,同算子的官方实现属 cuDNN。补齐后的对照为 `cudnnSoftmaxForward`(`MODE_INSTANCE` + `SOFTMAX_ACCURATE`,与本仓 v0 至 v4 同为「减最大值」的数值稳定口径),RTX 4090,3 轮 mean±std([EXP-K04](records/EXP-K04_standard_library_baselines.md),原始数据 `records/data/exp_k04_softmax_3rounds.csv`):
+
+| 形状 | v4(自写最优) | cuDNN | 判定 |
+|---|---|---|---|
+| 1024x1024(对齐) | **0.007768±0.000103 ms** | 0.008291±0.000023 ms | v4 快 **6.7%** |
+| 1024x1500(非对齐) | 0.009832±0.000045 ms | **0.008947±0.000095 ms** | cuDNN 快 **9.9%** |
+
+手写的优势只在对齐形状成立;换成非对齐的 1500 列,cuDNN 反过来快 9.9%。厂商库的价值有很大一部分就是「所有形状都不塌」,而单一 shape 特化的收益必须连着它的适用边界一起报。这也从外部印证了下文 v4.3 反例的结论:v4 的真正退化点是非对齐形状上的负载不均。
 
 仍然成立的部分是控制变量法归因——版本间比较不依赖外部对照物(时延为 Laptop 旧代口径,4090 端 3 轮复测排序一致,见 EXP-K01):
 
@@ -87,7 +107,7 @@ NCU 细节(Laptop 采集,行名已更正)见 `softmax/project-proof/profiling/nc
 
 算子:mat(4096x2048 fp32)x vec(2048 fp32)= y(4096 fp32)。
 
-结果(4070 Laptop 口径;4090 端 3 轮口径为 v3 比 cuBLAS gemv 快 37.8%,[EXP-K01](records/EXP-K01_4090_rebench.md)):
+结果(4070 Laptop 口径;4090 端 3 轮口径为 v3 比 `cublasSgemv` 快 34.1%,[EXP-K04](records/EXP-K04_standard_library_baselines.md),原始数据 `records/data/exp_k04_gemv_3rounds.csv`;前一轮同协议为 37.8%,差异来自 cuBLAS 侧的轮间波动):
 
 | 版本 | 时延 | 说明 |
 |---|---|---|
@@ -112,7 +132,7 @@ NCU 关键数据:
 
 v4 的教训:vec 本已在 L1 cache 里(vec 8KB 远小于 L1 的几十 KB),再用 shared memory 缓存等于多做一次「L1 至寄存器至 shared memory 至寄存器」的搬运。这类坑不是设计出来的,而是对硬件状态判断错误的结果;代价是数小时调试加一个慢一倍的 kernel,profiler 是唯一的解药。
 
-延伸:v3 在 mat 不超过 L2 的尺寸上(此处 32MB 约等于 L2 容量)稳定领先;mat 远大于 L2 时 cuBLAS 的 L2 优势会消失,19% 的领先可能持平甚至反转。这正是 LLM 推理框架(TensorRT-LLM、vLLM)为每个 shape 维护 specialized kernel 的原因——本质是做比 cuBLAS 更激进但 scope 更窄的库。
+延伸:v3 在 mat 不超过 L2 的尺寸上(此处 mat 32MB,在 4090 的 72MB L2 之内)稳定领先;mat 远大于 L2 时 cuBLAS 的 L2 优势会消失,这一领先可能持平甚至反转——reduce 的两区间结果是同一件事的直接演示。这正是 LLM 推理框架(TensorRT-LLM、vLLM)为每个 shape 维护 specialized kernel 的原因——本质是做比 cuBLAS 更激进但 scope 更窄的库。
 
 ### int8 quantize:kernel 融合对比 PyTorch eager
 
@@ -185,21 +205,24 @@ GEMM 与 FA2 用同一套 wmma 工具箱得到相反结局——GEMM 够到 cuBL
 
 ### 特化 scope 内,hardware-optimal 胜过 algorithm-optimal
 
-规律:当手写 kernel 赢过通用库(cuBLAS / PyTorch)时,很少是因为算法更聪明,绝大多数是因为手写侧能假设通用库不能假设的东西(输入对齐、shape 固定、dtype 固定),从而把硬件压得更狠。
+规律:当手写 kernel 赢过通用库(cuBLAS / cuDNN / PyTorch)时,很少是因为算法更聪明,绝大多数是因为手写侧能假设通用库不能假设的东西(输入对齐、shape 固定、dtype 固定),从而把硬件压得更狠。前提是还有余量可赢——瓶颈一旦已经是物理墙,双方都只能贴着同一条线。
 
-三种赢的形态:
+四类赢法,外加一条边界:
 
 | 项目 | 结果 | 手写侧的赢法 | 通用库的优势 |
 |---|---|---|---|
-| reduce(4090) | v7 比真 cuBLAS 快 **24.5%**(3 轮,EXP-K01) | 单一 shape 的 two-pass 特化,HBM 压满 | 通用 shape / dtype 覆盖 |
-| gemv | v3 比 cuBLAS 快 **19%** | DRAM% 95% 对 95%(warp shuffle 极简结构) | L2 命中率 21% 对 2.7%(column-major tiling) |
+| reduce(4090,HBM-bound) | v7 与官方 CUB 相差 **0.7%**(93.9% 对 94.5% 理论峰值,3 轮,EXP-K04) | 单一 shape 的 two-pass 特化把 DRAM 压到物理墙 | 无余量可赢——同一条 DRAM 带宽线 |
+| reduce(4090,L2 常驻) | CUB 比 v7 快 **33.3%**(3 轮,EXP-K04) | —— | 分尺寸 tuning(延迟隐藏 / 展开度 / 两阶段策略) |
+| softmax(4090) | v4 比 cuDNN 快 **6.7%**(对齐 1024x1024);非对齐 1024x1500 反被 cuDNN 快 9.9%(3 轮,EXP-K04) | 对齐形状上的 float4 + warp shuffle 特化 | 所有形状都不塌 |
+| gemv(4090) | v3 比 `cublasSgemv` 快 **34.1%**(3 轮,EXP-K04) | DRAM% 95% 对 95%(warp shuffle 极简结构) | L2 命中率 21% 对 2.7%(column-major tiling) |
 | quantize | v4 比 PyTorch eager 快 **6.6x** | 1 kernel 对 4 kernel(融合避免中间 tensor) | 灵活性(eager 模式支持动态图) |
 
 推论:
 
-1. gemv 一例是「手写侧赢硬件、通用库赢算法」;reduce(4090)一例赢在 shape 特化——同属「用更窄的假设换性能」。(原 softmax 行因对照物误标撤下,换入 reduce(4090)行,原行见 docs/archive/。)
-2. quantize 一例展示了融合是第三种赢法——与 Flash Attention 的思路一致。
-3. scope 意识:v3 的 19% 在 mat 约等于 L2 的尺寸上稳定成立,mat 远大于 L2 时优势可能消失。这正是 LLM 推理框架为每个 shape 维护 specialized kernel 的原因。
+1. gemv 一例是「手写侧赢硬件、通用库赢算法」;softmax 一例是「用更窄的假设换性能」的典型——赢在对齐形状,输在非对齐形状,收益与边界是同一件事的两面。
+2. reduce 两行给出这条规律的边界条件:瓶颈已经是物理墙时,谁也赢不了多少(差 0.7%);数据一旦装进 L2、余量重新出现,厂商库的分尺寸 tuning 就赢回 33.3%。先问「还有多少余量」,再问「谁写得更好」。
+3. quantize 一例展示了融合是第三种赢法——与 Flash Attention 的思路一致。
+4. scope 意识:v3 的领先在 mat 不超过 L2 的尺寸上稳定成立,mat 远大于 L2 时优势可能消失;softmax 的 6.7% 只在对齐形状上成立。这正是 LLM 推理框架为每个 shape 维护 specialized kernel 的原因——也是它们必须为每个 shape 各测一遍的原因。
 
 ### NCU 指标必须与时延趋势联读
 

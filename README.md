@@ -141,9 +141,10 @@ bash scripts/run_ncu_all.sh
 
 | 记录 | 结论 |
 |---|---|
-| [EXP-K01](records/EXP-K01_4090_rebench.md) | 四 kernel(reduce / softmax / gemv / int8)RTX 4090 重基准:reduce v7 反超真 cuBLAS 24.5%,gemv v3 快 37.8%(单轮 84% 复测不成立);softmax 的对照库对比因对照物系自写 kernel 整体撤销。 |
+| [EXP-K01](records/EXP-K01_4090_rebench.md) | 四 kernel(reduce / softmax / gemv / int8)RTX 4090 重基准,确立 3 轮 mean±std 与对照物验真两条协议:gemv 单轮 84% 复测不成立;softmax 的对照库对比因对照物系自写 kernel 整体撤销;reduce / gemv 的对照口径其后由 EXP-K04 取代。 |
 | [EXP-K02](records/EXP-K02_cuda_gemm_tc_ladder.md) | Tensor Core GEMM 版本梯 v0 至 v4:性能台阶来自指令世代(v1 至 v2 为 13.8x),v4 133.1 TFLOPS = 真 cuBLAS 的 85.6%,理论 occupancy 33% 最低却最快。 |
 | [EXP-K03](records/EXP-K03_cuda_fa2_ladder.md) | CUDA FA2 版本梯 v0 至 v4:同一套 wmma 工具箱只到 34.8 TFLOPS(同协议 Triton 版的 28%,跨 harness)——架构税量化,瓶颈在 shared memory 往返的相位链。 |
+| [EXP-K04](records/EXP-K04_standard_library_baselines.md) | 补齐同算子官方基准(CUB / cuDNN)并分 L2 常驻与 HBM-bound 两区间重测:HBM-bound 时 reduce v7 达 HBM 理论带宽 93.9%、与 CUB 差 0.7%,L2 常驻时 CUB 快 33.3%;softmax 对齐形状快 cuDNN 6.7%、非对齐慢 9.9%;gemv v3 快 `cublasSgemv` 34.1%。 |
 
 ## 测量方法
 
@@ -151,7 +152,7 @@ bash scripts/run_ncu_all.sh
 - **关键结论不少于 3 轮**:进入本文的对比数字均为 3 轮 mean±std 并在图中带误差条;对照物同样跑 3 轮——自家 kernel 稳定不代表对照稳定,单轮领先幅度里可能有一半来自对照的坏轮。
 - **对照物验真**:凡标注 cuBLAS 的对照都经源码调用点核查、确系真实库调用;自写参照一律命名 handwritten_*,PyTorch 对照标明 eager/API 口径。
 - **设对照臂与反例臂**:归因不靠「一路加速」的单调叙事,而靠故意构造的退化版本——softmax 的 v4.2 / v4.3 / v4.4 三个反例把加速拆解到具体机制(warp shuffle / 负载均衡 / bank conflict)。
-- **负结果与被证伪的假设照常报告**:gemv 单轮曾测得领先 84%,3 轮复测显示一半以上来自 cuBLAS 侧单轮波动,现行口径 37.8%;softmax 曾有的对照库对比因对照物经源码核查系自写 kernel 而整体撤销;跨 harness 对比(vs Triton / sdpa)一律标注推断级,不与同 harness 实测混谈。
+- **负结果与被证伪的假设照常报告**:gemv 单轮曾测得领先 84%,3 轮复测显示一半以上来自 cuBLAS 侧单轮波动,现行口径 34.1%;softmax 曾有的对照库对比因对照物经源码核查系自写 kernel 而整体撤销,改以 cuDNN 重做;reduce 曾以 `cublasSasum`(Σ|x|)作对照且测在 L2 常驻尺寸上,该口径整体撤销,改以同算子 CUB 分两区间重测;跨 harness 对比(vs Triton / sdpa)一律标注推断级,不与同 harness 实测混谈。
 - **profiler 隔离**:NCU / nsys 环境下测得的时延不进入 benchmark 表。
 
 ## 相关项目

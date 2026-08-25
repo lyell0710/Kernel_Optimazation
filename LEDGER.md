@@ -21,18 +21,20 @@
 |---|---|---|
 | reduce「反超 cuBLAS 24.5%」 | **作废**(异算子 asum + L2 区间) | 现行口径见 EXP-K04 §4.1 两区间表 |
 | softmax「快 cuBLAS X%」 | 永久禁用(对照系自写) | cuDNN 对照见 EXP-K04 §4.2 |
+| softmax「快 cuDNN 6.7%」 | 可用,但必须连非对齐形状慢 9.9% 一起报 | EXP-K04 §4.2(两形状同表) |
+| reduce 带宽百分比 | 只在 HBM-bound(1.07 GB)区间可报;L2 常驻区间报带宽即错 | EXP-K04 §4.1 / §6(等效带宽超理论峰值) |
 | GEMM「超过/追平 cuBLAS」 | 禁用(现状 85.6%) | Triton 版数字不得挪用;EXP-K02 §8 |
 | FA2「达到 sdpa/Triton 水平」 | 禁用(现状 28%) | v5 mma PTX 路线;EXP-K03 §8 |
 | 一切 vs Triton/sdpa 数字 | 跨 harness,推断级,引用必须带此限定 | 同 harness 复测;EXP-K03 §7 |
 | softmax 的任何「vs cuBLAS」对比句 | 作废(对照物系自写 kernel,cuBLAS 无 softmax API) | 无解锁;EXP-K01 §5 勘误 |
-| gemv 单轮领先幅度 | 作废,现行口径 = 快 37.8%(3 轮) | 对照物侧单轮波动已剖;EXP-K01 §7 闭环 |
+| gemv 单轮领先幅度 | 作废,现行口径 = 快 **34.1%**(3 轮;可写「34%,轮间 34–38%」) | EXP-K04 §4.3 取代 EXP-K01 §7 的 37.8%;差异为 cuBLAS 侧轮间波动 |
 | reduce「≈1193× 端到端」 | 仅限带「4070 Laptop」定语引用(授权例外) | 4090 端到端口径未测;见下节授权例外条 |
 | 「swizzle / smem 往返是剩余差距主因」 | 推断,不可当实测说 | NCU 计数器(容器内不可用,EXP-K01 §7) |
 
 ## 勘误 / 审计留痕(横幅集中处;原文与史料见 records/、docs/archive/、LAB_JOURNAL)
 
 - **softmax vs-cuBLAS 红线级勘误(2026-08-24)**:`softmax/src/softmax_cublas.cu` 系自写 warp 原语 kernel,并非 cuBLAS 调用(cuBLAS 无 softmax API)。"softmax 快 cuBLAS 26%/34%" 全链作废,含 L2 命中率 2.4 倍、online softmax 推断等归因叙事;简历/面试禁用。gemv/reduce 的 cuBLAS 对照经调用点验真有效。详见 EXP-K01 §5;作废段落原文 = `docs/archive/2026-08-24_portfolio_laptop_era_sections.md`。
-- **gemv 单轮 84% 勘误(2026-08-24 晚闭环)**:v3 自身完全复现,但 cuBLAS 对照单轮 0.02353 → 3 轮 0.017432±0.000169(−26%)——领先幅度一半以上系对照侧单轮波动。现行口径 = 快 37.8%(3 轮)。教训:对照物也要 3 轮。EXP-K01 §7 闭环。
+- **gemv 单轮 84% 勘误(2026-08-24 晚闭环)**:v3 自身完全复现,但 cuBLAS 对照单轮 0.02353 → 3 轮 0.017432±0.000169(−26%)——领先幅度一半以上系对照侧单轮波动。该轮口径 = 快 37.8%(3 轮),其后由 EXP-K04 §4.3 同协议复测更新为 **34.1%**(轮间 34–38%,cuBLAS 侧波动)。教训:对照物也要 3 轮。EXP-K01 §7 闭环。
 - **reduce Laptop 旧代自相矛盾(2026-08-24 审计)**:旧 results(v7=1.665ms)与旧 stability(0.273ms)矛盾,"v6/v7 回退 → 4090 反转"叙事不可确证、不作主张;旧稿移 `docs/archive/2026-08-24_portfolio_laptop_era_sections.md`,其中数字禁止对外引用。**唯一授权例外**:端到端口径「347.6ms→0.291ms,~1193×,4070 Laptop」经 Resume/Final_Resume/DO_NOT_SEND.md 2026-08-24 处置记录核准用于简历,引用必须带 Laptop 定语。
 - **raw driver=13.3 误填勘误**:gemm/flash-attn raw 的 driver 字段误填 13.3(实为 610.57.04;13.3 是 cudaDriverGetVersion 报的 driver-API 版本)。raw 不可变:以两处 `data/manifest.txt` 勘误 + 修 bench 源码 provenance 生成,不重跑。
 - **stability 覆盖史**:EXP-K01 首版仅 cuda-reduce 有 3 轮 stability;softmax/gemv/int8-quantize 于 2026-08-24 晚以 `scripts/stability_rebench.sh` 补齐(9 份 UTC raw + 3 份 3rounds 聚合入 records/data/),台账自此全绿。
