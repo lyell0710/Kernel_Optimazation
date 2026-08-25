@@ -77,7 +77,7 @@
 | cuBLAS（真库调用，调用点验真） | 0.03721±0.00022 | 通用库基准 |
 | v4 | 0.05693±0.00037 | 中间版本参照 |
 
-**勘误留痕（2026-08-24）**：旧稿此节以 Laptop 旧代数字立论（baseline 348 ms、v5 距 cuBLAS 差 1.7%、"v6/v7 grid-stride 慢 6× 教学反例"及其 NCU 归因与 CUB/Thrust 行业延伸）。审计发现 Laptop 端 v7 在旧 results（1.665 ms）与旧 stability（0.273 ms）两文件中自相矛盾，"v6/v7 回退 → 4090 反转"的叙事**不可确证，不作主张**（EXP-K01 §5）；旧稿全文按铁律 7 移 `docs/archive/2026-08-24_portfolio_laptop_era_sections.md`，其中数字禁止对外引用。Laptop 时代 NCU 机理参照（Sec/Ld=4 证明 coalescing 未坏等）保留在归档稿与 `artifacts/ncu_for_mac/`。
+**勘误留痕（2026-08-24）**：旧稿此节以 Laptop 旧代数字立论（baseline 348 ms、v5 距 cuBLAS 差 1.7%、"v6/v7 grid-stride 慢 6× 教学反例"及其 NCU 归因与 CUB/Thrust 行业延伸）。审计发现 Laptop 端 v7 在旧 results（1.665 ms）与旧 stability（0.273 ms）两文件中自相矛盾，"v6/v7 回退 → 4090 反转"的叙事**不可确证，不作主张**（EXP-K01 §5）；旧稿全文按铁律 7 移 `docs/archive/2026-08-24_portfolio_laptop_era_sections.md`，其中数字禁止对外引用(**唯一授权例外**:端到端口径「347.6ms→0.291ms,~1193×,4070 Laptop」经 Resume/Final_Resume/DO_NOT_SEND.md 2026-08-24 处置记录核准用于简历,引用时必须带 Laptop 定语)。Laptop 时代 NCU 机理参照（Sec/Ld=4 证明 coalescing 未坏等）保留在归档稿与 `artifacts/ncu_for_mac/`。
 
 **现行可说**：4090 上 v7（grid-stride two-pass）为全场最快并反超真 cuBLAS 24.5%（3 轮）；对照物经调用点验真（`reduce_cublas.cu` 为真库调用）。
 
