@@ -1,13 +1,8 @@
-> ⛔ **勘误(2026-08-24,红线级)**:本文所有 softmax "vs cuBLAS" 的对比与
-> 归因(含 L2 命中率 2.4 倍、online softmax 推断)**作废**——softmax_cublas.cu
-> 实为自写 kernel,并非 cuBLAS 调用(cuBLAS 无 softmax API)。gemv/reduce 的
-> cuBLAS 对照经验真有效。详见 records/EXP-K01 §5 勘误。简历禁用 softmax
-> 的 cuBLAS 对比句。
-
 # CUDA Kernel 优化 Portfolio
 
 > 六个项目（reduce / softmax / gemv / int8 quantize / Tensor Core GEMM / FA2 forward）的统一入口。
 > 主轴是方法论，每个项目是落地，跨项目 pattern 总结收尾；现行数字一律带 EXP 指针。
+> 门面与核心结果表见 [README.md](README.md)；本文是深读层。
 
 ---
 
@@ -19,8 +14,8 @@
 
 任何 GPU 优化的第一步是 `ncu`，不是猜。我每个项目都有一个"被 profiler 打脸"的瞬间：
 
-- **reduce**（勘误 2026-08-24）：旧稿以 Laptop 数字讲"v6/v7 grid-stride 慢 6×"——该叙事按 [EXP-K01 §5](records/EXP-K01_4090_rebench.md) 降级为"旧数据不可确证，不作主张"；4090 现行结论是 v7 反超真 cuBLAS 24.5%（3 轮）。原始过程稿见 docs/archive/。
-- **softmax**（勘误 2026-08-24）：原"v4 比 cuBLAS 快 26%，NCU 显示 cuBLAS L2 命中率 2.4 倍"整段作废——对照物实为自写 kernel（顶部勘误横幅 + EXP-K01 §5），归因对象根本不是 cuBLAS。
+- **reduce**：旧一代（Laptop）记录讲"v6/v7 grid-stride 慢 6×"——该叙事按 [EXP-K01 §5](records/EXP-K01_4090_rebench.md) 降级为"旧数据不可确证，不作主张"；4090 现行结论是 v7 反超真 cuBLAS 24.5%（3 轮）。原始过程稿见 docs/archive/。
+- **softmax**：原"v4 比 cuBLAS 快 26%，NCU 显示 cuBLAS L2 命中率 2.4 倍"整段撤销——对照物经源码核查实为自写 kernel（EXP-K01 §5），归因对象根本不是 cuBLAS。
 - **gemv**：v4 加 shared memory 缓存 vec 反而慢一倍，NCU 显示 BankSt 飙到 13820（v3 是 0），我把 vec 从 L1 多搬了一次到 shared memory。
 - **quantize**：v4 char4 store 让 L2 命中率从 32% 暴跌到 2%，看似灾难但 latency 更快——原因是消除了 read-modify-write 的补偿读。
 
@@ -34,7 +29,7 @@
   → 证明 v3→v4 的 30% 加速主要来自 warp shuffle，不是向量化
 - **v4.3**：main+tail 显式分离 → cols=1500 上不比 v4 快
   → 证明 v4 的真正退化点是负载不均，不是 tail handling
-- **v4.4**：保留 float4 主循环、归约故意制造 bank conflict → 慢于自写参照 8%（原稿误标 cuBLAS，勘误 2026-08-24）
+- **v4.4**：保留 float4 主循环、归约故意制造 bank conflict → 慢于自写 warp 参照 8%
   → 证明后置环节退化能拖垮所有前置优化
 
 **核心教训**：没有反例就没有归因。**主动构造对比是科研方法在工程里的应用**。
@@ -59,7 +54,7 @@
 
 任何 GPU kernel 的整体性能 = 最慢链路的性能。**前面跑得再快，后面被一个 syncthreads 卡住就崩**。
 
-最戏剧化的证据是 softmax 项目的 v4.4：main 循环保留 float4（带宽利用率 100%），但归约阶段一退化（bank conflict + 全程 syncthreads），整体直接慢于自写参照 kernel（原稿误标 cuBLAS，勘误 2026-08-24，EXP-K01 §5）。这跟 gemv v4 同源——加 shared memory 把 vec 从 L1 多搬一次，整体慢一倍。
+最戏剧化的证据是 softmax 项目的 v4.4：main 循环保留 float4（带宽利用率 100%），但归约阶段一退化（bank conflict + 全程 syncthreads），整体直接慢于自写 warp 参照 kernel。这跟 gemv v4 同源——加 shared memory 把 vec 从 L1 多搬一次，整体慢一倍。
 
 **核心教训**：优化要"齐头并进"，不能只猛攻最热的循环。**任何被忽略的环节都可能成为新的瓶颈**。
 
@@ -77,7 +72,7 @@
 | cuBLAS（真库调用，调用点验真） | 0.03721±0.00022 | 通用库基准 |
 | v4 | 0.05693±0.00037 | 中间版本参照 |
 
-**勘误留痕（2026-08-24）**：旧稿此节以 Laptop 旧代数字立论（baseline 348 ms、v5 距 cuBLAS 差 1.7%、"v6/v7 grid-stride 慢 6× 教学反例"及其 NCU 归因与 CUB/Thrust 行业延伸）。审计发现 Laptop 端 v7 在旧 results（1.665 ms）与旧 stability（0.273 ms）两文件中自相矛盾，"v6/v7 回退 → 4090 反转"的叙事**不可确证，不作主张**（EXP-K01 §5）；旧稿全文按铁律 7 移 `docs/archive/2026-08-24_portfolio_laptop_era_sections.md`，其中数字禁止对外引用(**唯一授权例外**:端到端口径「347.6ms→0.291ms,~1193×,4070 Laptop」经 Resume/Final_Resume/DO_NOT_SEND.md 2026-08-24 处置记录核准用于简历,引用时必须带 Laptop 定语)。Laptop 时代 NCU 机理参照（Sec/Ld=4 证明 coalescing 未坏等）保留在归档稿与 `artifacts/ncu_for_mac/`。
+**旧一代数据的处理**：本节旧稿以 4070 Laptop 数字立论（baseline 348 ms、"v6/v7 grid-stride 慢 6× 教学反例"及其 NCU 归因与 CUB/Thrust 行业延伸）。复查发现 Laptop 端 v7 在两份数据文件中自相矛盾（1.665 ms vs 0.273 ms），"v6/v7 回退 → 4090 反转"的叙事**不可确证，不作主张**（EXP-K01 §5）；旧稿全文移 docs/archive/ 留痕，其中数字不对外引用。唯一例外：端到端口径「347.6ms→0.291ms，~1193×」为 4070 Laptop 测量，引用时必须带 Laptop 定语。Laptop 时代 NCU 机理参照（Sec/Ld=4 证明 coalescing 未坏等）保留在归档稿与 `artifacts/ncu_for_mac/`。
 
 **现行可说**：4090 上 v7（grid-stride two-pass）为全场最快并反超真 cuBLAS 24.5%（3 轮）；对照物经调用点验真（`reduce_cublas.cu` 为真库调用）。
 
@@ -85,13 +80,13 @@
 
 ---
 
-## 项目 2：CUDA Softmax（控制变量法；对照物勘误后重述）
+## 项目 2：CUDA Softmax（控制变量法；对照物更正后重述）
 
 **算子**：1024×1024 fp32 矩阵逐行做 softmax
 
-**勘误（2026-08-24，红线级）**：本节旧稿头条"v4 比 cuBLAS 快 26%"及全部 vs-cuBLAS 归因（L2 命中率 2.4 倍、online softmax 推断、行业延伸）**作废**——对照物 `softmax_cublas.cu` 系自写 warp 原语 kernel，并非 cuBLAS（cuBLAS 无 softmax API；EXP-K01 §5）。作废段落移 `docs/archive/2026-08-24_portfolio_laptop_era_sections.md`；该对比无对外引用价值，简历/面试禁用。
+**对照物更正**：本节旧稿头条"v4 比 cuBLAS 快 26%"及全部 vs-cuBLAS 归因（L2 命中率 2.4 倍、online softmax 推断、行业延伸）**作废**——对照物 `softmax_cublas.cu` 经源码核查系自写 warp 原语 kernel，并非 cuBLAS（cuBLAS 无 softmax API；EXP-K01 §5）。作废段落移 docs/archive/ 留痕；本项目不提供任何对照库比较。
 
-**仍然成立的部分——控制变量法归因**（版本间比较不依赖外部对照物；时延为 Laptop 旧代，4090 端为单轮复测、排序一致，见 EXP-K01）：
+**仍然成立的部分——控制变量法归因**（版本间比较不依赖外部对照物；时延为 Laptop 旧代口径，4090 端 3 轮复测排序一致，见 EXP-K01）：
 
 | 版本 | 时延 (ms, Laptop) | 角色 |
 |---|---|---|
@@ -102,9 +97,9 @@
 | **v4.4**（故意制造 bank conflict） | 0.0236 | **反例 #3**：后置退化拖垮前置优化（Amdahl） |
 | handwritten_ref（原误标 "cublas"） | 0.0220 | 自写 warp 参照（非 cuBLAS） |
 
-**关键贡献**：v4.2 / v4.3 / v4.4 三个反例做精细归因——没有反例就没有归因；这一方法论与对照物勘误无关，依然成立。
+**关键贡献**：v4.2 / v4.3 / v4.4 三个反例做精细归因——没有反例就没有归因；这一方法论不依赖外部对照物，依然成立。
 
-NCU 细节（Laptop 采集，行名已勘误）见 `softmax/project-proof/profiling/ncu/SUMMARY.md`。
+NCU 细节（Laptop 采集，行名已更正）见 `softmax/project-proof/profiling/ncu/SUMMARY.md`。
 
 ---
 
@@ -112,7 +107,7 @@ NCU 细节（Laptop 采集，行名已勘误）见 `softmax/project-proof/profil
 
 **算子**：mat (4096×2048 fp32) × vec (2048 fp32) = y (4096 fp32)
 
-**结果**：
+**结果**（4070 Laptop 口径；4090 端 3 轮口径为 v3 比 cuBLAS gemv 快 37.8%，[EXP-K01](records/EXP-K01_4090_rebench.md)）：
 
 | 版本 | 时延 | 角色 |
 |---|---|---|
@@ -145,7 +140,7 @@ v4 的踩坑教训特别真实：**vec 已经在 L1 cache 里**（vec 8KB << L1 
 
 **算子**：fp32 → int8 per-channel symmetric quantize（1024 channels × 1024 hw = 4MB → 1MB）
 
-**结果**：
+**结果**（4070 Laptop 口径；4090 端 v4 = 5.57±0.03 µs，3 轮，`records/data/exp_k01_int8_quantize_3rounds.csv`）：
 
 | 版本 | 时延 | 角色 |
 |---|---|---|
@@ -162,14 +157,14 @@ v4 的踩坑教训特别真实：**vec 已经在 L1 cache 里**（vec 8KB << L1 
 
 | 指标 | v3 | v4 | 含义 |
 |---|---|---|---|
-| DRAM% | 37.8%(3 轮) | 85% | 接近算子上限（dtype 不对称导致 85% 是天花板）|
+| DRAM% | 84% | 85% | 接近算子上限（dtype 不对称导致 85% 是天花板）|
 | **L2Hit%** | **32%** | **2.15%** | **暴跌但 latency 更快** |
 | StallLSB% | 79% | 82% | SM 越来越闲，越来越纯等 HBM |
 | 时延 | 0.0075ms | **0.0066ms** | 快 12% |
 
 **核心叙述**：
 
-**第一个反直觉点：L2 命中率暴跌但更快**。原来 v3 每次 store 1 字节会触发 read-modify-write（硬件读 4 字节 word、改 1 字节、写回），这些补偿读算到 L2 hit 里。v4 用 char4 直接 4 字节整体覆盖，**不需要补偿读，L2 hit 计数自然下降但实际访存量减少**。**同一个 L2 命中率暴跌，reduce v6/v7 是性能问题，quantize v4 是性能优化——profiler 给现象，原因要靠模型推理**。
+**第一个反直觉点：L2 命中率暴跌但更快**。原来 v3 每次 store 1 字节会触发 read-modify-write（硬件读 4 字节 word、改 1 字节、写回），这些补偿读算到 L2 hit 里。v4 用 char4 直接 4 字节整体覆盖，**不需要补偿读，L2 hit 计数自然下降但实际访存量减少**。**同一个 L2 命中率暴跌，换一个场景可能就是性能劣化，在 quantize v4 却是性能优化——profiler 给现象，原因要靠模型推理**。
 
 **第二个反直觉点：C++ v4 比 PyTorch eager 快 6.6×**。原因不是算法更聪明，是 **PyTorch eager 把 `(x/s).round().clamp().to(int8)` 拆成 4 个独立 kernel**，每个都要 materialize 4MB 中间 tensor 到 HBM。总 HBM 流量是 32MB，我 C++ 一个 kernel 全 fuse 在 SRAM 里只有 5MB——**6.4× 的流量差刚好对应 6.6× 的 latency 差**。
 
@@ -177,9 +172,9 @@ v4 的踩坑教训特别真实：**vec 已经在 L1 cache 里**（vec 8KB << L1 
 
 ---
 
-## 项目 5：CUDA Tensor Core GEMM（wmma 版本梯，2026-08-24 · 4090）
+## 项目 5：CUDA Tensor Core GEMM（wmma 版本梯，RTX 4090）
 
-**算子**：fp16 GEMM 4096³（fp32 累加），对照 = 真 `cublasGemmEx`（调用点验真——项目 2 勘误后的标准动作）。
+**算子**：fp16 GEMM 4096³（fp32 累加），对照 = 真 `cublasGemmEx`（调用点验真——项目 2 对照物更正后的标准动作）。
 
 **结果**（3 轮，[EXP-K02](records/EXP-K02_cuda_gemm_tc_ladder.md)）：v0 naive 5.2 → v1 smem tile 6.5 → v2 wmma **89.5** → v3 cp.async 双缓冲 95.5 → v4 128² 大 tile **133.1 TFLOPS = cuBLAS 85.6%**。
 
@@ -187,7 +182,7 @@ v4 的踩坑教训特别真实：**vec 已经在 L1 cache 里**（vec 8KB << L1 
 
 ---
 
-## 项目 6：CUDA FA2 forward（wmma 架构税的定量测量，2026-08-24 · 4090）
+## 项目 6：CUDA FA2 forward（wmma 架构税的定量测量，RTX 4090）
 
 **算子**：Flash Attention 2 前向（在线 softmax，D=128，causal+GQA），协议对齐自家 Triton 版（B=1,Hq=32,Hkv=8,S=4096）。
 
@@ -211,7 +206,7 @@ v4 的踩坑教训特别真实：**vec 已经在 L1 cache 里**（vec 8KB << L1 
 - ✅ reduce v0→v2：bank conflict 砍 50%，时延几乎不变
 - ✅ softmax v0→v2：bank conflict 砍 70%，时延只省 2%
 - ✅ gemv v0→v2：Sec/Ld 变差，时延反而略降（HBM 等待掩盖了 ALU 的变差）
-- ❌ **quantize v0→v1：位运算优化把 DRAM% 从 61% 拉到 37.8%(3 轮)**——这是反例！
+- ❌ **quantize v0→v1：位运算优化把 DRAM% 从 61% 拉到 84%**——这是反例！
 
 **反例的解释**：quantize 是 **memory-bound + 简单 ALU**，指令路径短（没有 syncthreads 这种大头），所以 ALU 端的小优化才能浮上来。reduce / softmax / gemv 的指令路径里夹着 syncthreads，那些才是大头，v1 的几个 cycle 完全被掩盖。
 
@@ -235,7 +230,7 @@ v4 的踩坑教训特别真实：**vec 已经在 L1 cache 里**（vec 8KB << L1 
 
 **最终推论**：
 
-1. （勘误 2026-08-24：原 softmax 行系对照物误标，作废撤入 docs/archive/，换入 reduce@4090 行。）gemv 一例是"**我赢硬件、通用库赢算法**"；reduce@4090 一例赢在 shape 特化——同属"用更窄的假设换性能"。
+1. （原 softmax 行因对照物误标撤下，换入 reduce@4090 行，原行见 docs/archive/。）gemv 一例是"**我赢硬件、通用库赢算法**"；reduce@4090 一例赢在 shape 特化——同属"用更窄的假设换性能"。
 2. 第三个 quantize 项目展示了 **fusion** 是第三种赢法——这跟 Flash Attention 的思路一致。
 3. **scope 意识**：v3 的 19% 在 mat ≈ L2 的尺寸上稳赢，mat >> L2 时优势可能消失。**这就是为什么 LLM 推理框架要为每个 shape 维护一套 specialized kernel**。
 
@@ -254,7 +249,7 @@ v4 的踩坑教训特别真实：**vec 已经在 L1 cache 里**（vec 8KB << L1 
 | **softmax v4** | SM% 71% → 40% | 灾难 | **是优化**——计算开销被砍，HBM 被压满 |
 | **softmax v3 / gemv v3** | Sec/Ld = 16 | 灾难 | **是 float4 满分**（每 lane 16 字节 × 32 lane = 16 sector）|
 
->（勘误 2026-08-24：原表两行 reduce v6/v7 案例随"v6/v7 慢 6×"叙事降级而撤下——旧数据不可确证，EXP-K01 §5；原行见 docs/archive/。）
+>（注：原表两行 reduce v6/v7 案例随"v6/v7 慢 6×"叙事降级而撤下——旧数据不可确证，EXP-K01 §5；原行见 docs/archive/。）
 
 **最终推论**：**Profiler 给的是现象，原因是要推的**。
 
@@ -276,7 +271,7 @@ v4 的踩坑教训特别真实：**vec 已经在 L1 cache 里**（vec 8KB << L1 
 | **quantize** | float4 read + char4 store 配套 | 只优化 read 端收益有限 | read + store 都向量化后才 squeeze 出最后 12% |
 
 **后置退化拖垮前置的反例**：
-- **softmax v4.4**：main 循环保留 float4（带宽利用率 100%），但归约阶段制造 bank conflict + 全程同步 → **整体慢于自写参照 8%（原稿误标 cuBLAS，勘误 2026-08-24，EXP-K01 §5）**
+- **softmax v4.4**：main 循环保留 float4（带宽利用率 100%），但归约阶段制造 bank conflict + 全程同步 → **整体慢于自写 warp 参照 8%**
 - **gemv v4**：v3 已经最优，加 shared memory 缓存 vec → **L1 多搬一次反而慢一倍**
 
 **最终推论**：**优化是链，不是点**。
@@ -312,7 +307,7 @@ v4 的踩坑教训特别真实：**vec 已经在 L1 cache 里**（vec 8KB << L1 
 
 **短版（5-7 分钟）**：
 1. 30 秒讲顶层方法论四条
-2. 1 分钟每个项目讲钩子 + 最强一个数字（reduce v7 反超真 cuBLAS 24.5%@4090，3 轮 / gemm 133 TFLOPS = 真 cuBLAS 85.6% / FA2 wmma 架构税 34.8 vs 123 TFLOPS，跨 harness / quantize 比 PyTorch eager 快 6.6×，Laptop 口径；softmax 对比句已作废禁用）
+2. 1 分钟每个项目讲钩子 + 最强一个数字（reduce v7 反超真 cuBLAS 24.5%@4090，3 轮 / gemm 133 TFLOPS = 真 cuBLAS 85.6% / FA2 wmma 架构税 34.8 vs 123 TFLOPS，跨 harness / quantize 比 PyTorch eager 快 6.6×，Laptop 口径；softmax 不提供对照库对比）
 3. 1 分钟 Pattern 表选 1-2 条讲透
 
 **长版（15-20 分钟）**：

@@ -87,7 +87,7 @@ ax.set_xlabel("TFLOPS(fp16 输入 / fp32 累加,4096³)", fontsize=9)
 ax.set_title("GEMM 的台阶是指令世代(v1→v2 wmma ×13.8),v4 达真 cuBLAS 85.6%",
              fontsize=11.5, pad=10)
 footnote(fig, "source: gemm/project-proof/data/derived_gemm4096_stability.csv"
-              " · 2026-08-24 · RTX 4090 · 3 轮 mean±std(误差条)· EXP-K02")
+              " · RTX 4090 · 3 轮 mean±std(误差条)· EXP-K02")
 fig.tight_layout(rect=(0, 0.035, 1, 1))
 fig.savefig(os.path.join(FIGDIR, "01_gemm_tc_ladder.png"), dpi=DPI,
             facecolor="white")
@@ -115,7 +115,7 @@ ax.set_xlabel("TFLOPS(B=1 Hq=32 Hkv=8 D=128 causal,S=4096)", fontsize=9)
 ax.set_title("FA2 用 wmma:访存全预取后仅 +6.6%——瓶颈在 smem 往返相位链,不在访存",
              fontsize=11.5, pad=10)
 footnote(fig, "source: flash-attn/project-proof/data/derived_fa2_proto_stability.csv"
-              "(S=4096 行)· 2026-08-24 · RTX 4090 · 3 轮 mean±std · EXP-K03")
+              "(S=4096 行)· RTX 4090 · 3 轮 mean±std · EXP-K03")
 fig.tight_layout(rect=(0, 0.04, 1, 1))
 fig.savefig(os.path.join(FIGDIR, "02_fa2_wmma_ladder.png"), dpi=DPI,
             facecolor="white")
@@ -137,8 +137,8 @@ hbar(ax, labels, means, stds, colors, lambda m, s: f"{m:.5f}±{s:.5f} ms")
 ax.set_xlabel("时延 ms(1600 万 float 求和,越低越好)", fontsize=9)
 ax.set_title("reduce v7 反超真 cuBLAS 24.5%(4090,3 轮 mean±std)",
              fontsize=11.5, pad=10)
-footnote(fig, "source: records/data/exp_k01_reduce_3rounds.csv · 2026-08-24"
-              " · RTX 4090 · N=1<<24 · EXP-K01")
+footnote(fig, "source: records/data/exp_k01_reduce_3rounds.csv"
+              " · RTX 4090 · N=1<<24 · 3 轮 mean±std · EXP-K01")
 fig.tight_layout(rect=(0, 0.05, 1, 1))
 fig.savefig(os.path.join(FIGDIR, "03_reduce_v7_vs_cublas.png"), dpi=DPI,
             facecolor="white")
