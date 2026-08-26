@@ -6,14 +6,14 @@
 // 为什么 S/P 要 smem 往返:wmma accumulator fragment 的 lane→元素映射
 // 未定义(编译器私有),行级 max/exp/α 无法在 fragment 上做——生产核
 // (FA2/CUTLASS)用 mma PTX 拿到确定布局后在寄存器里做,这是 wmma→mma
-// 的本质分界(与 gemm/ 记录 EXP-K02 §7 的 v5 backlog 同源)。
+// 的本质分界(与 gemm/ 记录 EXP-K02（CUDA Tensor Core GEMM 版本梯）§7 的 v5 backlog 同源)。
 // 算法:每 block 管 64 行 q,流式吃 64 键 tile;每 tile 走 5 段相位链
 // (段间恰 5 次 __syncthreads,每处的竞态对象见行内注释):
 //   ① K/V 装载 → ② QK^T(wmma)→ S 落 smem → ③ 标量段行级在线 softmax
 //   (S→P,更新 m/l/α)→ ④ O ×α 重缩放 → ⑤ P·V(wmma)累加进 O。
 // 约束:D=128,S % 64 == 0(bench 形状均满足;通用尾块见 v0/v1)。
 // 性能:5.635±0.017 ms = 24.4±0.06 TFLOPS,vs v1 x4.5 = FA2 梯最大台阶
-// (EXP-K03);资源:72 reg / 128 thr / 动态 smem 90.75KB → 1 block/SM,
+// (EXP-K03（CUDA FA2 forward 简化版版本梯）);资源:72 reg / 128 thr / 动态 smem 90.75KB → 1 block/SM,
 // 理论 occupancy 8.3%。v4 把 ① 全部预取重叠后仅 +6.6%(EXP-K03 §6)——
 // 瓶颈是这条相位链本身:本文件就是「wmma 架构税」的实体。
 // 面试点:① softmax 为什么必须出 fragment(映射私有);② O 的 ×α 重缩放

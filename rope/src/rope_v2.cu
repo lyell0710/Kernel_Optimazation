@@ -9,7 +9,7 @@
 //   prefill 时 T 很大,kernel 本身耗时远大于 launch,这一级应当接近零收益;
 //   decode 时 T=1,一次 launch(~3-5us)可能比 kernel 本身还贵,省掉一次
 //   就是接近 2x。同一个改动在两个区间的收益差好几倍 —— 这正是
-//   triton-kernels#EXP-T03「小 kernel 的瓶颈在主机侧而非设备侧」在本算子
+//   triton-kernels#EXP-T03（三件套移植 + torch 绑定）「小 kernel 的瓶颈在主机侧而非设备侧」在本算子
 //   上的复现,也是「优化必须绑定工作区间来谈」的又一个实例。
 //
 // 代价:kernel 里多了一次分支。分支在 warp 内是发散的吗?不是 ——

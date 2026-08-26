@@ -8,7 +8,7 @@
 // 向 buf[p^1] 预取下一 K 块——与 Triton num_stages=2 是同一件事的手写形。
 // 契约:同 v2(M,N % 64 == 0,K % 32 == 0)。
 // 性能:1.439±0.007 ms = 95.5±0.49 TFLOPS = 真 cuBLAS 61.4%,vs v2 +6.7%
-// (EXP-K02)。增量不大的原因:v2 已是 compute-bound,装载本占比有限,
+// (EXP-K02（CUDA Tensor Core GEMM 版本梯）)。增量不大的原因:v2 已是 compute-bound,装载本占比有限,
 // 重叠能省的就这点——对照 v4 大 tile 的 +39%:复用(算术强度)比重叠值钱。
 // 资源:61 reg / 16KB smem / 128 thr → 6 block/SM(smem 限),理论 occupancy 50%。
 //

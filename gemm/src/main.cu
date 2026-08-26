@@ -1,7 +1,7 @@
 // ============================================================================
 // GEMM 版本梯 bench:v0 naive → v1 tile → v2 wmma → v3 双缓冲 → v4 大tile,
 // 对照 = 真 cuBLAS(cublasGemmEx,调用点验真见 gemm_cublas.cu)。
-// 测量协议(EXP-K02 §2):固定 4096³;每版本 3 warmup + 50 iters(慢版
+// 测量协议(EXP-K02（CUDA Tensor Core GEMM 版本梯）§2):固定 4096³;每版本 3 warmup + 50 iters(慢版
 // iters/10,下限 3),CUDA event 计时取均值;正确性 = 对 cuBLAS 输出抽样
 // 最大相对误差 < 2e-2(fp16 存储的合理界;实测全版本 7.58e-04)。
 // 落盘纪律:结果只写 BENCH_OUT 指定的 UTC 前缀新文件,首行 provenance

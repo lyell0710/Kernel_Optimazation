@@ -8,7 +8,7 @@
 |---|---|
 | 环境 | RTX 4090（L2 72.0 MB，HBM 理论 1008.1 GB/s，driver 610.57.04，CUDA 13.2） |
 | 状态 | 完成 |
-| 关联 | EXP-K01（4090 首轮重测）的整改闭环；softmax 对照物勘正的最终落地 |
+| 关联 | EXP-K01《四 kernel 4090 重基准》（4090 首轮重测）的整改闭环；softmax 对照物勘正的最终落地 |
 
 ## 1. 目的与假设(跑前锁定)
 
@@ -88,7 +88,7 @@ EXP-K01 §7 同协议前一轮测得 37.8%，两轮差异来自 cuBLAS 侧的轮
 
 ### 4.4 int8-quantize
 
-该算子不属 BLAS/cuDNN 规范，harness 内没有同算子厂商库可比。v4 为 0.005639±0.000194 ms；PyTorch eager 对照见 triton-kernels#EXP-T03（Laptop 口径，单轮）。
+该算子不属 BLAS/cuDNN 规范，harness 内没有同算子厂商库可比。v4 为 0.005639±0.000194 ms；PyTorch eager 对照见 triton-kernels#EXP-T03《三件套移植 + torch 绑定》（Laptop 口径，单轮）。
 
 ## 5. 分析与结论
 

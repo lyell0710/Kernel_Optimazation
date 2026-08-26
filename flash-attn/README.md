@@ -1,6 +1,6 @@
 # CUDA FA2 forward 简化版版本梯(在线 softmax,D=128,causal+GQA)
 
-与自家 Triton 版(triton-kernels#EXP-T01)同协议对照的 CUDA 原生实现,
+与自家 Triton 版(triton-kernels#EXP-T01《Triton FA2 forward》)同协议对照的 CUDA 原生实现,
 完整记录见 [../records/EXP-K03_cuda_fa2_ladder.md](../records/EXP-K03_cuda_fa2_ladder.md)。
 
 ## 版本梯(S=4096,B=1,Hq=32,Hkv=8,causal,3 轮,数据权威 = project-proof/data/)
@@ -13,7 +13,7 @@
 | v3 | 8 warp 并行组织 | 32.5 | +33% |
 | v4 | half S/P + cp.async K 双缓冲/V 重叠 | **34.8** | 仅 +6.6% → 瓶颈在相位链 |
 
-一句话读法:**wmma 做 GEMM 够到 cuBLAS 86%(EXP-K02),做 FA2 只够到自家
+一句话读法:**wmma 做 GEMM 够到 cuBLAS 86%(EXP-K02《CUDA Tensor Core GEMM 版本梯》),做 FA2 只够到自家
 Triton 版的 28%**——fragment 布局不透明逼出的 smem 往返吃掉融合优势,
 这就是 FA2 官方实现要用 mma/CUTLASS 的定量理由。
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# EXP-K01 §7 整改:softmax/gemv/int8-quantize 各 3 轮,UTC 前缀落盘,不动既有 raw。
+# EXP-K01（四 kernel 4090 重基准）§7 整改:softmax/gemv/int8-quantize 各 3 轮,UTC 前缀落盘,不动既有 raw。
 # 原理:二进制写死 project-proof/data/benchmark_results.csv(trunc)——
 #   先把既有文件挪到安全位,跑完把输出 mv 成 UTC 名,最后原样放回既有文件。
 set -euo pipefail

@@ -10,7 +10,7 @@
   decode64 T=64     —— 连续批处理下的典型 batch
   prefill  T=2048   —— 2K prefill,总工作集 ~21MB,L2 常驻
   hbm      T=32768  —— 总工作集 ~336MB,确定落 HBM
-(两个区间都测的理由见 EXP-K04:memory-bound 算子只测小尺寸会量到 L2 带宽。)
+(两个区间都测的理由见 EXP-K04（标准库基准补齐与两区间重测）:memory-bound 算子只测小尺寸会量到 L2 带宽。)
 
 用法: BENCH_OUT=project-proof/data/<UTC>_rope_stability_r1.csv python bench.py
 """

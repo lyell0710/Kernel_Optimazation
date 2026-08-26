@@ -9,7 +9,7 @@
 //   softmax:每行 2 线程各扫 32 列,shfl 合并(v2 一行 1 线程扫 64);
 //   P·V:每 warp 16 行 x 64 列半区(v2 为 16x128)。
 // 契约:同 v2(D=128,S % 64 == 0)。
-// 性能:4.229±0.012 ms = 32.5±0.10 TFLOPS,vs v2 +33%(EXP-K03);资源:
+// 性能:4.229±0.012 ms = 32.5±0.10 TFLOPS,vs v2 +33%(EXP-K03（CUDA FA2 forward 简化版版本梯）);资源:
 // 95 reg / 256 thr / smem 90.75KB → 仍 1 block/SM,理论 occupancy 16.7%。
 // 面试点:+33% 全部来自 block 内并行度而 occupancy 只从 8.3% 到 16.7%——
 // 被 smem 钉在 1 block/SM 时,加 warp 是唯一放大招;对照 gemm v4

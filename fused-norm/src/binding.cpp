@@ -54,7 +54,7 @@ void run(at::Tensor out, at::Tensor residual, at::Tensor x, at::Tensor w, double
        reinterpret_cast<const __nv_bfloat16*>(w.data_ptr()),
        T, H, (float)eps,
        // 取当前流而不是默认流:引擎里若开了 CUDA Graph 或多流,
-       // 用默认流会导致捕获失败或隐式同步(triton-kernels#EXP-T05 的坑)。
+       // 用默认流会导致捕获失败或隐式同步(triton-kernels#EXP-T05（CUDA Graph 消 launch 开销实测）的坑)。
        at::cuda::getCurrentCUDAStream());
 }
 

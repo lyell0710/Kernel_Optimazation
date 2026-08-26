@@ -85,7 +85,7 @@ softmax 对比句**撤下**(对照系自写 kernel,见 §5 勘误);gemv 84% 须�
   4090 归因以带宽模型推断并注明证据等级。
 - **int8 baseline 口径**:仓内 baseline 为 CPU 级实现(106ms/1024²),
   1.8e4× 不可对外引用;简历的"比 PyTorch eager 快 6.6×"是另一口径,
-  4090 版 PyTorch-eager 对照在 triton-kernels 仓补测(EXP-T03)。
+  4090 版 PyTorch-eager 对照在 triton-kernels 仓补测(EXP-T03《三件套移植 + torch 绑定》)。
 - **整改项(违 CORE bench 铁则)**:本仓 bench 直接覆盖 CSV(trunc 旧值),
   旧值仅靠 git 提交锚定——后续应改 UTC 前缀新文件;本次以"提交对"作
   版本锚,未改 harness(老项目缺哪补哪,不推倒)。
@@ -132,5 +132,5 @@ raw = 各 `project-proof/data/2026*_stability_r{1,2,3}.csv`,聚合 =
 本记录 §5/§7 的 reduce 结论「v7 反超真 cuBLAS 24.5%」**不再作为对外口径**:
 ①对照 `cublasSasum` 与被测 Σx 并非同一算子;②该测量规模(67.1 MB)小于 4090 的
 72 MB L2,处于 L2 常驻区间而非 HBM-bound。同算子基准(CUB)与两区间数据见
-[EXP-K04](EXP-K04_standard_library_baselines.md)。gemv 37.8% 亦由 EXP-K04 的
+[EXP-K04《标准库基准补齐与两区间重测》](EXP-K04_standard_library_baselines.md)。gemv 37.8% 亦由 EXP-K04 的
 34.1%(新一轮)取代,差异为 cuBLAS 侧轮间波动。

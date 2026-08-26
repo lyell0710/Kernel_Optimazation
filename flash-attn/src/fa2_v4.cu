@@ -5,7 +5,7 @@
 // v4 · 访存重叠(组织结构继承 v3 的 8 warp):
 // ① S/P 统一为一块 half 缓冲 SP(S 写出即转 fp16,exp 原位改写 S→P):
 //    省掉 v2/v3 的 float S 区 17408B、砍半 softmax 的 smem 读流量;
-//    精度代价过 gate(err 4.88e-04,EXP-K03 §5——fp16 S/P 未推高误差);
+//    精度代价过 gate(err 4.88e-04,EXP-K03（CUDA FA2 forward 简化版版本梯）§5——fp16 S/P 未推高误差);
 // ② K 双缓冲 cp.async:QK^T(t) 进行时 K(t+1) 已在途;
 // ③ V(t) 装载与 QK^T(t) 重叠(V 只在 PV 段用,重叠窗口 = ②③④ 三段)。
 // 契约:同 v2/v3(D=128,S % 64 == 0)。

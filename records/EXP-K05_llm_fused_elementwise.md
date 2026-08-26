@@ -1,4 +1,4 @@
-# EXP-K05 LLM 融合逐元素算子三件套:fused_add_rmsnorm / rope / silu_and_mul
+# EXP-K05 · LLM 融合逐元素算子三件套:fused_add_rmsnorm / rope / silu_and_mul
 
 ## 0 元信息
 
@@ -7,7 +7,7 @@
 | 日期 | 2026-08-26 |
 | 环境 | 4090 容器,venv:/root/venvs/main(torch 2.13.0+cu132, triton 3.7.1),nvcc 13.2 |
 | 状态 | 完成 |
-| 关联 | 新增三个子项目 `fused-norm/` `rope/` `activation/`;Triton 对照臂在 triton-kernels#EXP-T09;引擎接入在 llm-engine#EXP-D23 |
+| 关联 | 新增三个子项目 `fused-norm/` `rope/` `activation/`;Triton 对照臂在 triton-kernels#EXP-T09《Triton 版 LLM 融合逐元素算子》;引擎接入在 llm-engine#EXP-D23《融合逐元素算子接入》 |
 | 数据 | `fused-norm|rope|activation/project-proof/data/2026*_r{1,2,3}.csv` 与同目录 `derived_*_stability.csv` |
 
 ## 1 目的与假设
@@ -16,8 +16,8 @@
 两个数据点的问题:**什么时候手写 CUDA 才值得?**
 
 已有两点(均为本仓既有结论):计算主导的 GEMM,手写 wmma 够到真 cuBLAS 的
-85.6%(EXP-K02);融合型 attention,同一套 wmma 只够到自家 Triton 的 28%
-(EXP-K03)。本实验补第三点:**访存主导的融合逐元素算子**。
+85.6%(EXP-K02《CUDA Tensor Core GEMM 版本梯》);融合型 attention,同一套 wmma 只够到自家 Triton 的 28%
+(EXP-K03《CUDA FA2 forward 简化版版本梯》)。本实验补第三点:**访存主导的融合逐元素算子**。
 
 跑前锁定的可证伪预测(逐条,跑完不改):
 
@@ -42,7 +42,7 @@
 - 编译选项 `-O3 -arch=sm_89`,不开 `--use_fast_math`(访存主导算子无性能价值,
   却会让超越函数舍入偏离 PyTorch,给数值差异引入无法归因的来源;实测开关
   前后误差完全相同,证明误差来自累加顺序而非快速数学)。
-- 形状按区间取,每个算子四档;区间划分依据 EXP-K04 的教训:4090 的 L2 是 72MB,
+- 形状按区间取,每个算子四档;区间划分依据 EXP-K04《标准库基准补齐与两区间重测》的教训:4090 的 L2 是 72MB,
   memory-bound 算子只测小尺寸会量到 L2 带宽而非 HBM 带宽。
 - 有效带宽一律按**算法下界字节数**计(fused-norm 8 B/元素、rope 4 B/元素、
   activation 6 B/元素);因此 >100% 峰值即说明数据落在 L2,是区间判据而非错误。
@@ -120,7 +120,7 @@ fused-norm v4 与 v3 逐位一致(bench 内 `torch.equal` 断言),证明寄存�
 **H4 成立。** rope 的 v1→v2(q/k 合并 launch)在 HBM 区间 -1.1%(778.9→770.6,
 噪声内),在 decode 区间 1.43x(0.01030→0.00721 ms)。同一个改动在两个区间收益
 差 40 倍,这是"优化必须绑定工作区间来谈"的直接样本,也复现了
-triton-kernels#EXP-T03「小 kernel 的瓶颈在主机侧而非设备侧」。
+triton-kernels#EXP-T03《三件套移植 + torch 绑定》「小 kernel 的瓶颈在主机侧而非设备侧」。
 
 **H5 成立(边缘)。** rope 的 v3→v4(免表现算)在 HBM 区间 +2.1%(887.0→905.9),
 落在预测的 ±5% 内。表访存确实主要命中 L2,省掉它只有边际收益。

@@ -9,7 +9,7 @@
 //   即半个事务 —— 硬件仍按整事务的粒度动作,一半带宽被丢弃。改成每 lane
 //   16B 后,一个 warp 一次请求 32*16=512B = 4 个满事务,事务利用率 100%。
 //   同时每元素的访存指令数降到 1/8,LSU 发射压力与 MIO 队列排队一起下来
-//   (这正是 Kernel_Optimazation/gemm EXP-K02 里 NCU 给出的
+//   (这正是 Kernel_Optimazation/gemm EXP-K02（CUDA Tensor Core GEMM 版本梯）里 NCU 给出的
 //    "use wider loads" 建议在逐元素算子上的对应做法)。
 //
 // 预期:v2 -> v3 是主要加速来源(标量版通常只能跑到 HBM 峰值的 40-60%)。

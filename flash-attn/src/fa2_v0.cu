@@ -5,7 +5,7 @@
 //   m = 运行 max,l = 运行分母,α = exp(m_old - m_new) 把历史部分和折算到新基。
 // 数据布局:每 lane 持 q 的 4 维(D=128/32);K/V 复用完全交给 L2——
 // 单 kv-head 的 K 仅 S·D·2B = 1MB(S=4096)≪ 4090 的 72MB L2,这个事实
-// 决定了 v1 的 smem 化只有 +11%(EXP-K03 §6)。
+// 决定了 v1 的 smem 化只有 +11%(EXP-K03（CUDA FA2 forward 简化版版本梯）§6)。
 // 契约:任意 S/causal/GQA(Hq % Hkv == 0)。
 // 性能:27.795±0.047 ms = 4.9±0.06 TFLOPS(S=4096 协议点,EXP-K03)。
 // 面试点:α 修正为什么数学恒等而数值必要——exp(x-m_old)·exp(m_old-m_new)

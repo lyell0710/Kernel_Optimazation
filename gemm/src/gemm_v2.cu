@@ -12,7 +12,7 @@
 //   每 warp 2x2 个 16x16x16 accumulator fragment;As[64][32]+Bs[32][64] 各 4KB。
 // 契约:M,N % 64 == 0 且 K % 32 == 0(装载无 guard)。
 // 性能:1.536±0.008 ms = 89.5±0.46 TFLOPS = 真 cuBLAS 57.6%,vs v1 x13.8
-// ——全梯最大台阶(EXP-K02)。资源:54 reg / 8KB smem / 128 thr →
+// ——全梯最大台阶(EXP-K02（CUDA Tensor Core GEMM 版本梯）)。资源:54 reg / 8KB smem / 128 thr →
 // 9 block/SM(reg 限),理论 occupancy 75%。
 // 面试点:① x13.8 的台阶来自指令世代而非访存微调(v0→v1 仅 +25% 为对照);
 // ② 写回段 fp32→fp16 的逐元素转换为何合法:同 shape 的 accumulator

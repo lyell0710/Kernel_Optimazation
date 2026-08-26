@@ -1,7 +1,7 @@
 // ============================================================================
 // FA2 CUDA 版本梯 bench:协议对齐 triton-kernels/scripts/test_fa2.py
 // (B=1,Hq=32,Hkv=8,D=128,causal,S=512..4096)——同协议是「跨 harness
-// 对照自家 Triton 版」成立的前提(EXP-K03,推断级)。
+// 对照自家 Triton 版」成立的前提(EXP-K03（CUDA FA2 forward 简化版版本梯）,推断级)。
 // 两段结构:
 //   1) 正确性 gate:形状族覆盖非 causal、GQA 1:1/2:1/4:1、S 512..2048,
 //      阈值 max_abs_err < 2e-2 vs fp32 两遍参考(算法路径独立,见 ref_naive.cu);

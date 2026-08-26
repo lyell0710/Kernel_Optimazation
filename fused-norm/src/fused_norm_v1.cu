@@ -9,7 +9,7 @@
 // 省掉的正是 v0 里 rmsnorm_kernel 的第一遍读。理论加速 6/5 = 1.20x。
 //
 // 顺带省掉的还有一次 kernel launch(~3-5 us)。在 T 很小(decode,T=1..64)
-// 时 launch 占比可以超过 kernel 本身 —— 这也是 triton-kernels#EXP-T03
+// 时 launch 占比可以超过 kernel 本身 —— 这也是 triton-kernels#EXP-T03（三件套移植 + torch 绑定）
 // 「融合数比单核快慢更重要」在本算子上的对应面。
 //
 // 为什么第二遍还要重读 res:平方和必须等整行扫完才知道,而 rstd 又是归一化

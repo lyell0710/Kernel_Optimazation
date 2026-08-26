@@ -1,7 +1,7 @@
 # 02 · wmma 架构税:FA2 forward 五版走读
 
 > 对象:`flash-attn/src/` 五个 kernel(v0 warp-per-row → v1 K/V 进 smem → v2 wmma + smem 往返 softmax → v3 8 warp 并行组织 → v4 双 pipeline 重叠),对照自家 Triton 版(mma + 寄存器驻留,跨 harness,推断级)。
-> 数字权威:`flash-attn/project-proof/data/derived_fa2_proto_stability.csv`(3 轮 mean±std),实验记录 = records/EXP-K03_cuda_fa2_ladder.md(下文简称 EXP-K03);对照口径与 gemv/reduce 的访存课来自 records/EXP-K01_4090_rebench.md(简称 EXP-K01)。
+> 数字权威:`flash-attn/project-proof/data/derived_fa2_proto_stability.csv`(3 轮 mean±std),实验记录 = records/EXP-K03_cuda_fa2_ladder.md(下文简称 EXP-K03《CUDA FA2 forward 简化版版本梯》);对照口径与 gemv/reduce 的访存课来自 records/EXP-K01_4090_rebench.md(简称 EXP-K01《四 kernel 4090 重基准》)。
 > 协议:B=1,Hq=32,Hkv=8(GQA 4:1),D=128,causal,S=512..4096,fp16 存储 / fp32 在线累加,RTX 4090(sm_89)。
 > 前置:讲义 01 §3.2(wmma fragment 的三条性质)与 §3.3(cp.async 组语义)——本篇直接在那两处的结论上继续推。
 > 引用规矩:凡属论文/官方文档的论断一律给出处(标题 + arXiv/DOI 编号 + 章节或公式编号;文档给 URL 路径 + 小节号),关键句给原文;凡属本讲义补出的推导或折算,行内标注「本讲义折算」或「账面推断」;无法用检索确认的说法标注「未核实」。本仓自己的数字一律带 EXP 锚。
@@ -403,7 +403,7 @@ $$G_K(0),\ G_V(0),\ G_K(1),\ G_V(1),\ G_K(2),\ \dots$$
 
 ### 3.7 28% 逐层拆:哪一层拿到了,哪一层没有
 
-v4 的 34.8±0.12 TFLOPS 对自家 Triton 版的 123 TFLOPS(S=4096,1.119 ms,EXP-T01,**跨 harness,推断级**)= **28%**;对 sdpa-flash 的约 140 TFLOPS = 25%(同样跨 harness,推断级)。把这个差距按优化层次拆:
+v4 的 34.8±0.12 TFLOPS 对自家 Triton 版的 123 TFLOPS(S=4096,1.119 ms,EXP-T01《Triton FA2 forward》,**跨 harness,推断级**)= **28%**;对 sdpa-flash 的约 140 TFLOPS = 25%(同样跨 harness,推断级)。把这个差距按优化层次拆:
 
 | 层 | 本梯拿到的 | 证据等级 |
 |---|---|---|
@@ -434,7 +434,7 @@ v4 的 34.8±0.12 TFLOPS 对自家 Triton 版的 123 TFLOPS(S=4096,1.119 ms,EXP-
 - $O$ 常驻寄存器,×α 按 lane 自己的行号做 ⇒ **④ 整段消失**,④→⑤ 的 barrier 也消失。
 - `ldmatrix.sync.aligned.m8n8.x4.shared.b16` 一条指令按 mma 需要的 lane 布局从 smem 取 8×8 块,替代 `wmma::load_matrix_sync`;配合手工 smem swizzle 消 bank conflict(wmma API 不暴露 swizzle,§3.3 的 68/72 填充是它唯一能用的手段)。
 
-净效果:五段相位链塌成「装载 / 计算」两段,`__syncthreads` 从每 tile 5 次降到 1–2 次,§3.4 里那 61% 的 smem 流量归零。这就是官方 FA2 与 CUTLASS 采用 mma 而非 wmma 的定量理由,也是本仓 v5 技能票的内容——与 gemm 的 v5 是同一张票,共用一次学习成本(EXP-K02 §7、EXP-K03 §8),列为后续工作,不阻塞现有结论。
+净效果:五段相位链塌成「装载 / 计算」两段,`__syncthreads` 从每 tile 5 次降到 1–2 次,§3.4 里那 61% 的 smem 流量归零。这就是官方 FA2 与 CUTLASS 采用 mma 而非 wmma 的定量理由,也是本仓 v5 技能票的内容——与 gemm 的 v5 是同一张票,共用一次学习成本(EXP-K02《CUDA Tensor Core GEMM 版本梯》§7、EXP-K03 §8),列为后续工作,不阻塞现有结论。
 
 #### 3.8.1 PTX 到底给了什么:m16n8k16 的三张映射表
 
@@ -852,7 +852,7 @@ wmma 没有「累加到内存」这种原语,所以只能 load 旧 $O$ → 逐�
 
 **误区 5:「一个对照数字只要是实测就能用」。** 本仓有三个被自己推翻的实例,分别对应三种不同的失效方式:**对照物不是库**(softmax 曾用的对照经源码核查系自写 kernel,cuBLAS 并无 softmax API)、**对照物不是同一个算子**(reduce 曾用 `cublasSasum` 的 Σ|x| 对照 Σx)、**对照物只跑了一轮**(gemv 的单轮领先幅度在补齐对照侧 3 轮后腰斩,而自家 kernel 完全复现)。三者都通过了「是实测」这一关,三者都不能用。完整过程与现行口径见 §8.3。
 
-**误区 6:「测出来的带宽就是硬件的带宽」。** 判据只有一条:等效带宽对理论峰值。本仓 reduce 在 67.1 MB 数组上测得的等效带宽是 4090 HBM 理论峰值的 1.8 至 3.4 倍(EXP-K04 §4.1)——**超过理论峰值只能说明数据没落 DRAM**,那个尺寸小于 72 MB 的 L2。同一份代码换成 1.07 GB 的数组,等效带宽立刻回到理论峰值的 93.9%,而且版本之间的相对排序也变了。**一个性能数字的第一个属性不是大小,是「它测的是哪一层」。**
+**误区 6:「测出来的带宽就是硬件的带宽」。** 判据只有一条:等效带宽对理论峰值。本仓 reduce 在 67.1 MB 数组上测得的等效带宽是 4090 HBM 理论峰值的 1.8 至 3.4 倍(EXP-K04《标准库基准补齐与两区间重测》§4.1)——**超过理论峰值只能说明数据没落 DRAM**,那个尺寸小于 72 MB 的 L2。同一份代码换成 1.07 GB 的数组,等效带宽立刻回到理论峰值的 93.9%,而且版本之间的相对排序也变了。**一个性能数字的第一个属性不是大小,是「它测的是哪一层」。**
 
 **边界声明**:本篇全部实测数字的适用范围是 $D=128$、$B{=}1$、$H_q{=}32$、$H_{kv}{=}8$、causal、$S\in\{512,1024,2048,4096\}$、fp16 存储 / fp32 在线累加、RTX 4090(sm_89)、合成随机输入;v2/v3/v4 额外要求 $S \bmod 64 = 0$,通用尾块由 v0/v1 兜底,目标是归因不是产品化。28%/25% 是跨 harness 推断级,引用必须带这个限定。「smem 往返与相位链是差距主因」是推断,不当实测说——NCU 计数器在本容器不可用(EXP-K01 §7),没有 stall reason 的直接测量。§3.4 的 408 KB/tile 与 61% 是账面推导,不是计数器读数。decode 形状($S_q{=}1$)与非整除 $S$ 均未测。
 

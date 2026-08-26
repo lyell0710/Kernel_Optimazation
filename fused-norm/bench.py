@@ -8,7 +8,7 @@
 对别人 Python bench,计时口径不同,只能标注「跨 harness 推断级」。把手写
 kernel 绑进 torch 后,所有臂共用下面这一段 CUDA-event 计时,差值才是算子差值。
 
-四个形状分三个区间(取自 EXP-K04 的教训:memory-bound 算子必须同时测 HBM
+四个形状分三个区间(取自 EXP-K04（标准库基准补齐与两区间重测）的教训:memory-bound 算子必须同时测 HBM
 区间,否则数据全落在 4090 的 72MB L2 里,量到的是 L2 带宽而不是 HBM 带宽):
   decode  T=1/64   —— 引擎逐 token 解码时的真实形状,launch 主导
   prefill T=2048   —— 引擎 2K prefill,总工作集 64MB,L2 边缘
@@ -85,7 +85,7 @@ def timeit(fn, iters, warmup=10):
 
     为什么不逐次记 event:每对 event 有 ~1us 的记录开销,本算子最快形状只有
     几微秒,逐次计时的开销会成为被测量本身。整段包住则开销被 iters 摊薄。
-    warmup 驱走冷时钟与 JIT/懒初始化(triton-kernels#EXP-T02 的 JIT 伪影教训)。
+    warmup 驱走冷时钟与 JIT/懒初始化(triton-kernels#EXP-T02（流水线 GEMM）的 JIT 伪影教训)。
     """
     for _ in range(warmup):
         fn()

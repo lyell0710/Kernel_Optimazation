@@ -12,7 +12,7 @@
 ## 1. 目的与假设
 
 背景:本仓四个 CUDA kernel 全是行核/向量核,唯一的 Tensor Core GEMM 在
-triton-kernels 仓(EXP-T02,160.5 TFLOPS)。面试「手写 CUDA 用过 Tensor Core
+triton-kernels 仓(EXP-T02《流水线 GEMM》,160.5 TFLOPS)。面试「手写 CUDA 用过 Tensor Core
 吗」此前只能指本机没有代码的 Llama2 引擎——证据可及性风险。本实验用 CUDA
 原生 API 把版本梯补出来。
 
@@ -31,7 +31,7 @@ triton-kernels 仓(EXP-T02,160.5 TFLOPS)。面试「手写 CUDA 用过 Tensor Co
 - 每版本 3 warmup + 50 iters(v0/v1 慢版 5 iters),CUDA event 计时。
 - 对照 = `cublasGemmEx`(CUBLAS_COMPUTE_32F, DEFAULT_TENSOR_OP),
   **调用点验真**:gemm/src/gemm_cublas.cu 含 `cublasCreate`+`cublasGemmEx`,
-  非自写 kernel(EXP-K01 §5 softmax 勘误的整改动作:凡 "vs cublas" 先验调用点)。
+  非自写 kernel(EXP-K01《四 kernel 4090 重基准》§5 softmax 勘误的整改动作:凡 "vs cublas" 先验调用点)。
 - 版本梯(gemm/src/):
   - v0 naive:1 thread/输出,直接全局访存。
   - v1 tile:32×32 smem 分块,CUDA core FMA。

@@ -51,7 +51,11 @@ def main():
         for k, v in agg.items():
             row = list(k)
             for c in num_cols:
-                vals = v[c]
+                # 剔除 nan:分解步骤那类臂不判正确性,err 列写的是 nan,
+                # 直接喂给 statistics 会抛 AttributeError(nan 没有 numerator)。
+                vals = [x for x in v[c] if x == x]
+                if not vals:
+                    row.append("nan"); row.append("nan"); continue
                 row.append(f"{statistics.mean(vals):.6g}")
                 row.append(f"{statistics.stdev(vals):.4g}" if len(vals) > 1 else "0")
             f.write(",".join(row) + "\n")
@@ -59,7 +63,7 @@ def main():
 
 def _isnum(s):
     try:
-        float(s); return True
+        float(s); return True      # 'nan' 也能被 float() 解析,按数值列处理
     except (TypeError, ValueError):
         return False
 

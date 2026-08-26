@@ -9,7 +9,7 @@
 //   As[32][32] ← A 的 32 行 x 当前 K 块;Bs[32][32] ← 当前 K 块 x B 的 32 列;
 //   acc += As[ty][k] * Bs[k][tx](k=0..31);smem 合计 4KB。
 // 契约:M,N,K % 32 == 0(grid 不取整、装载无 guard;bench 4096 满足)。
-// 性能:21.114±0.047 ms = 6.5±0.00 TFLOPS,仅 +25%(EXP-K02 H1:fp16 走
+// 性能:21.114±0.047 ms = 6.5±0.00 TFLOPS,仅 +25%(EXP-K02（CUDA Tensor Core GEMM 版本梯）H1:fp16 走
 // CUDA core 的算力上限太低,tiling 省下的带宽换不来算力)。
 // 面试点:同样的 smem tile 化在 memory-bound 的 gemv/reduce 是主菜,在
 // compute-bound 的 GEMM 只是 +25% 的坡——先判 bound 类型再选优化手段。

@@ -49,7 +49,7 @@ def timeit(fn, iters, warmup=10):
 
     为什么不逐次记 event:每对 event 有 ~1us 记录开销,而本组算子最快形状
     只有几微秒,逐次计时会让开销成为被测量本身。整段包住则被 iters 摊薄。
-    warmup 驱走冷时钟与 JIT/懒初始化(triton-kernels#EXP-T02 的 JIT 伪影教训:
+    warmup 驱走冷时钟与 JIT/懒初始化(triton-kernels#EXP-T02（流水线 GEMM）的 JIT 伪影教训:
     新 Triton config 首跑必须预热,否则测到的是编译时间)。
     """
     for _ in range(warmup):

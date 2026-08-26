@@ -12,7 +12,7 @@
 
 任何 GPU 优化的第一步是 `ncu`,不是猜测。每个项目都有一次 profiler 推翻预判的记录:
 
-- reduce:旧一代(Laptop)记录曾主张「v6/v7 grid-stride 慢 6x」——该叙事按 [EXP-K01 §5](records/EXP-K01_4090_rebench.md) 降级为「旧数据不可确证,不作主张」;4090 现行结论见下文两区间表([EXP-K04](records/EXP-K04_standard_library_baselines.md))。同一算子的测量口径也被推翻过一次:经典 1600 万元素(67.1 MB)配置在 L2 达 72 MB 的 4090 上测到的是 L2 带宽而非 HBM 带宽——等效带宽超过理论峰值即是判据。原始过程稿见 docs/archive/。
+- reduce:旧一代(Laptop)记录曾主张「v6/v7 grid-stride 慢 6x」——该叙事按 [EXP-K01《四 kernel 4090 重基准》§5](records/EXP-K01_4090_rebench.md) 降级为「旧数据不可确证,不作主张」;4090 现行结论见下文两区间表([EXP-K04《标准库基准补齐与两区间重测》](records/EXP-K04_standard_library_baselines.md))。同一算子的测量口径也被推翻过一次:经典 1600 万元素(67.1 MB)配置在 L2 达 72 MB 的 4090 上测到的是 L2 带宽而非 HBM 带宽——等效带宽超过理论峰值即是判据。原始过程稿见 docs/archive/。
 - softmax:原「v4 比 cuBLAS 快 26%,NCU 显示 cuBLAS L2 命中率 2.4 倍」整段撤销——对照物经源码核查实为自写 kernel(EXP-K01 §5),归因对象并非 cuBLAS。
 - gemv:v4 用 shared memory 缓存 vec 反而慢一倍,NCU 显示 BankSt 升至 13820(v3 为 0)——vec 被从 L1 多搬了一次。
 - quantize:v4 的 char4 store 使 L2 命中率从 32% 跌至 2%,时延反而更快——原因是消除了 read-modify-write 的补偿读。
@@ -168,17 +168,17 @@ NCU 关键数据:
 
 算子:fp16 GEMM 4096³(fp32 累加),对照为真 `cublasGemmEx`(调用点验真——softmax 对照物更正后的标准动作)。RTX 4090。
 
-结果(3 轮,[EXP-K02](records/EXP-K02_cuda_gemm_tc_ladder.md)):v0 naive 5.2,v1 smem tile 6.5,v2 wmma 89.5,v3 cp.async 双缓冲 95.5,v4 128x128 大 tile 133.1 TFLOPS,即真 cuBLAS 的 85.6%。
+结果(3 轮,[EXP-K02《CUDA Tensor Core GEMM 版本梯》](records/EXP-K02_cuda_gemm_tc_ladder.md)):v0 naive 5.2,v1 smem tile 6.5,v2 wmma 89.5,v3 cp.async 双缓冲 95.5,v4 128x128 大 tile 133.1 TFLOPS,即真 cuBLAS 的 85.6%。
 
 - compute-bound 算子的台阶是指令世代(v1 至 v2 为 13.8x),访存微调只有 +25%——与前四个 memory-bound 项目完全相反;先判定 bound 类型再动手。
 - v4 理论 occupancy 33% 为全梯最低却最快(92 寄存器 x 256 线程 + 32KB smem,每 SM 仅 2 个 block)——Tensor Core 吞吐依赖 fragment 级 ILP 与 smem 复用,不依赖线程数遮蔽延迟。
-- 与自家 Triton 版(triton-kernels#EXP-T02,160.5 TFLOPS)对照:Triton 编译器发射 mma + ldmatrix + swizzle,而 wmma API 不暴露 smem swizzle——同一硬件上「写 CUDA」不等于「到上限」,API 层级本身是性能变量(剩余差距归因为推断,NCU 不可用)。
+- 与自家 Triton 版(triton-kernels#EXP-T02《流水线 GEMM》,160.5 TFLOPS)对照:Triton 编译器发射 mma + ldmatrix + swizzle,而 wmma API 不暴露 smem swizzle——同一硬件上「写 CUDA」不等于「到上限」,API 层级本身是性能变量(剩余差距归因为推断,NCU 不可用)。
 
 ### FA2 forward:wmma 架构税的定量测量
 
 算子:Flash Attention 2 前向(在线 softmax,D=128,causal+GQA),协议对齐自家 Triton 版(B=1,Hq=32,Hkv=8,S=4096)。RTX 4090。
 
-结果(3 轮,[EXP-K03](records/EXP-K03_cuda_fa2_ladder.md)):v0 warp-per-row 4.9,v1 smem tile 5.5(+11%,L2 已扛住广播读),v2 wmma 24.4(4.5x),v3 8 warp 32.5(+33%),v4 cp.async 重叠 34.8 TFLOPS(仅 +6.6%);全 shape 通过 2e-2 正确性 gate。
+结果(3 轮,[EXP-K03《CUDA FA2 forward 简化版版本梯》](records/EXP-K03_cuda_fa2_ladder.md)):v0 warp-per-row 4.9,v1 smem tile 5.5(+11%,L2 已扛住广播读),v2 wmma 24.4(4.5x),v3 8 warp 32.5(+33%),v4 cp.async 重叠 34.8 TFLOPS(仅 +6.6%);全 shape 通过 2e-2 正确性 gate。
 
 GEMM 与 FA2 用同一套 wmma 工具箱得到相反结局——GEMM 够到 cuBLAS 的 86%,FA2 只够到自家 Triton 版(123 TFLOPS,跨 harness)的 28%。原因是结构性的:wmma accumulator fragment 的 lane 到元素的映射未定义,行级 softmax(max/exp/rescale)被迫经由 shared memory 往返,外加每 tile 5 次 `__syncthreads` 的相位链;v4 把 K/V 访存全部预取重叠后只涨 6.6%,说明瓶颈不在访存而在相位链。越是依赖「融合免搬运」的算子,越需要 mma 级寄存器控制——这就是官方 FA2 实现采用 CUTLASS/mma 而非 wmma 的定量理由。
 

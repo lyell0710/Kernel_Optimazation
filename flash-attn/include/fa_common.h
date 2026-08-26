@@ -8,7 +8,7 @@
 // 累加;D = 128 固定(FA_D);GQA:要求 Hq % Hkv == 0,query head h 使用
 // kv head h / (Hq/Hkv)。
 // 契约:v0/v1 任意 S;v2/v3/v4 额外要求 S % 64 == 0(bench 形状均满足,
-// 通用尾块由 v0/v1 兜底,EXP-K03 §7)。指针为 device 指针,launch 异步。
+// 通用尾块由 v0/v1 兜底,EXP-K03（CUDA FA2 forward 简化版版本梯）§7)。指针为 device 指针,launch 异步。
 // 正确性:全版本全 shape max_abs_err < 2e-2 vs fp32 两遍参考
 // (实测 4.88e-04,EXP-K03 §5)。
 // 性能锚(S=4096 协议点:B=1,Hq=32,Hkv=8,causal;4090,3 轮,EXP-K03):

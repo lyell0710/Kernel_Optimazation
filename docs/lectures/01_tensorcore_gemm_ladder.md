@@ -1,7 +1,7 @@
 # 01 · Tensor Core GEMM 版本梯:v0→v4 全程走读
 
 > 对象:`gemm/src/` 五个 kernel(v0 naive → v1 smem tile → v2 wmma → v3 cp.async 双缓冲 → v4 128×128 大 tile),对照真 cuBLAS(`cublasGemmEx`,调用点验真)。
-> 数字权威:`gemm/project-proof/data/derived_gemm4096_stability.csv`(3 轮 mean±std),实验记录 = records/EXP-K02_cuda_gemm_tc_ladder.md(下文简称 EXP-K02)。
+> 数字权威:`gemm/project-proof/data/derived_gemm4096_stability.csv`(3 轮 mean±std),实验记录 = records/EXP-K02_cuda_gemm_tc_ladder.md(下文简称 EXP-K02《CUDA Tensor Core GEMM 版本梯》)。
 > 协议:M=N=K=4096,fp16 存储 / fp32 累加,行主序,RTX 4090(sm_89)。
 > 引用规矩:凡属论文/官方文档的论断一律给出处(标题 + arXiv/DOI 编号 + 章节或公式编号;文档给 URL 路径 + 小节号),关键句给原文;凡属本讲义补出的推导或折算,行内标注「本讲义折算」或「账面推断」;无法用检索确认的说法标注「未核实」。本仓自己的数字一律带 EXP 锚,原始 CSV 路径写在正文里。
 
@@ -44,7 +44,7 @@
 | 每 SM 每周期 Tensor MAC | 256 | **本讲义折算**:165.2e12 / 2 / (128 × 2.52e9) = 256 |
 | 每 SM shared memory 峰值带宽 | 128 B/cycle | **本讲义折算**:32 bank × 4 B/bank/cycle(Best Practices §10.2.3.1) |
 
-两条值得单独记住的对照:白皮书正文说完整 AD102 带 98304 KB(96 MiB)L2(§Memory Subsystem:「AD102 has been outfitted with 98304 KB of L2 cache, an improvement of 16x over the 6144 KB that shipped in GA102」),而 RTX 4090 是裁剪版,Appendix A 的表给的是 73728 KB。本仓设备实测 L2 = 72.0 MB(EXP-K04 §2),与 Appendix A 一致——**引用 L2 容量时必须区分「完整芯片」与「这张卡」**,差了三分之一。第二条:1008 GB/s 是 384 bit × 21 Gbps ÷ 8 的直接结果(本讲义折算:384 × 21e9 / 8 = 1.008e12 B/s),本仓从设备属性实测反推为 1008.1 GB/s(EXP-K04 §3),两者一致,说明这条理论峰值不是一个需要打折的营销数字。
+两条值得单独记住的对照:白皮书正文说完整 AD102 带 98304 KB(96 MiB)L2(§Memory Subsystem:「AD102 has been outfitted with 98304 KB of L2 cache, an improvement of 16x over the 6144 KB that shipped in GA102」),而 RTX 4090 是裁剪版,Appendix A 的表给的是 73728 KB。本仓设备实测 L2 = 72.0 MB(EXP-K04《标准库基准补齐与两区间重测》§2),与 Appendix A 一致——**引用 L2 容量时必须区分「完整芯片」与「这张卡」**,差了三分之一。第二条:1008 GB/s 是 384 bit × 21 Gbps ÷ 8 的直接结果(本讲义折算:384 × 21e9 / 8 = 1.008e12 B/s),本仓从设备属性实测反推为 1008.1 GB/s(EXP-K04 §3),两者一致,说明这条理论峰值不是一个需要打折的营销数字。
 
 ### 1.3 本篇引用的一级文献(详细出处与「读它解决什么疑问」见 §8.3)
 
@@ -158,7 +158,7 @@ v1 把复用显式化:32×32 tile 里每个元素装载一次供 32 个线程使
 **性质 3 的边界必须说清楚,不能含糊**。文档明文授权的是「全 warp 一致地对所有 fragment 元素施加同一个逐元素运算」。本仓依赖的有两种写法:
 
 - `h.x[e] = __float2half(acc[i][j].x[e]);`(gemm_v2.cu:91):对同一个 fragment 的每个元素做同一个一元运算,**完全落在文档明文授权的范围内**。
-- `pv.x[e] += oacc.x[e]`(第二篇讲义的 fa2_v2.cu:160):把**两个同 shape、同 Use、同数据类型**的 accumulator fragment 逐元素相加。文档没有正面写这一句,它成立依赖一个未明文的前提——同一编译单元、同一 shape/类型的 fragment 使用同一套(未指定的)映射。这个前提在实践中成立(否则 `mma_sync(d, a, b, c)` 里 c 与 d 的对应关系本身就无法定义),但**它不是文档承诺,本讲义标注「文档未明文,实践依赖」**。本仓正确性 gate 全过(err 4.88e-04,EXP-K03 §5)是这条依赖成立的间接证据,不是证明。
+- `pv.x[e] += oacc.x[e]`(第二篇讲义的 fa2_v2.cu:160):把**两个同 shape、同 Use、同数据类型**的 accumulator fragment 逐元素相加。文档没有正面写这一句,它成立依赖一个未明文的前提——同一编译单元、同一 shape/类型的 fragment 使用同一套(未指定的)映射。这个前提在实践中成立(否则 `mma_sync(d, a, b, c)` 里 c 与 d 的对应关系本身就无法定义),但**它不是文档承诺,本讲义标注「文档未明文,实践依赖」**。本仓正确性 gate 全过(err 4.88e-04,EXP-K03《CUDA FA2 forward 简化版版本梯》§5)是这条依赖成立的间接证据,不是证明。
 
 性质 2 对 GEMM 无害(GEMM 不需要知道元素在哪一行),对 FA2 是致命税负(行级 softmax 必须知道行号)——这是第二篇讲义的主线,伏笔埋在这里。
 
@@ -663,7 +663,7 @@ void gemm_cublas(const half* A, const half* B, half* C, int M, int N, int K) {
 
 **为什么这个技巧是恒等而不是近似**:cuBLAS 文档开宗明义 "For maximum compatibility with existing Fortran environments, the cuBLAS library uses column-major storage, and 1-based indexing."(cuBLAS Library §1.1 Data Layout)。一块行主序的 M×N 内存,用列主序的眼睛去看,就是一个 N×M 的矩阵——这是同一块字节的两种读法,没有任何数据移动。于是 `C_row = A_row · B_row` 被读成 `C_col^T = ...`,而 (A·B)^T = B^T·A^T,所以传 (N, M, K) 并交换指针即可。**这里唯一需要小心的是 leading dimension**:传给 B 的 ld 是 N(行主序下 B 的行宽),传给 A 的 ld 是 K,传给 C 的 ld 是 N——都写的是「行主序的行宽」,因为在列主序视角下它们正是各自的列高。
 
-**为什么强调「真」**:本仓 softmax 项目曾有对照物经源码核查系自写 kernel(cuBLAS 并无 softmax API),相关对比句整体撤销(EXP-K01 §5);现行 softmax 对照已换成同算子的官方实现 `cudnnSoftmaxForward`(EXP-K04 §4.2)。此后立的规矩是凡「vs cublas」先验调用点,本文件就是被验对象。
+**为什么强调「真」**:本仓 softmax 项目曾有对照物经源码核查系自写 kernel(cuBLAS 并无 softmax API),相关对比句整体撤销(EXP-K01《四 kernel 4090 重基准》§5);现行 softmax 对照已换成同算子的官方实现 `cudnnSoftmaxForward`(EXP-K04 §4.2)。此后立的规矩是凡「vs cublas」先验调用点,本文件就是被验对象。
 
 **关于 `CUBLAS_GEMM_DEFAULT_TENSOR_OP`**:cuBLAS 文档现在把这个枚举标为 deprecated,语义是 "Apply Heuristics to select the GEMM algorithm, while allowing use of reduced precision CUBLAS_COMPUTE_32F_FAST_16F kernels (for backward compatibility)"(cuBLAS Library §2.8.11 cublas<t>gemmEx())。**这一点对口径有实际影响**:它允许库在 FP32 计算类型下降到 FP16 累加的快路径。本梯的 compute type 显式写的是 `CUBLAS_COMPUTE_32F`,而正确性核对显示 cuBLAS 输出与各版本的 max_rel_err 同为 7.58e-04 量级(EXP-K02 §5),与「fp32 累加」的预期一致;但**本讲义没有直接证据证明 cuBLAS 在本次运行中选的一定是 fp32 累加 kernel**,标注**未核实**。若它选了 fp16 累加,155.4 这个对照值会偏高,本梯 85.6% 的相对位置会偏低——即这个不确定性的方向对本梯的结论是**保守**的。
 

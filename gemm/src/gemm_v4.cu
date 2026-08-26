@@ -14,7 +14,7 @@
 //   每 warp 4x2 = 8 个 accumulator fragment 常驻寄存器。
 // 契约:M,N % 128 == 0 且 K % 32 == 0。
 // 性能:1.033±0.007 ms = 133.1±0.97 TFLOPS = 真 cuBLAS 85.6%(155.4),
-// vs v3 +39%——版本梯对 cuBLAS 差距的主要收口(EXP-K02)。
+// vs v3 +39%——版本梯对 cuBLAS 差距的主要收口(EXP-K02（CUDA Tensor Core GEMM 版本梯）)。
 // 资源:92 reg x 256 thr(≈23.5K/64K)+ 32KB smem → 2 block/SM(reg 限),
 // 理论 occupancy 33%,全梯最低。
 // 面试点:① occupancy 33% 最低却最快——Tensor Core 吞吐不靠线程数遮蔽

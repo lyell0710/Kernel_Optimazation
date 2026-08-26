@@ -2,7 +2,7 @@
 
 > 目标听众:面试官。目标是让对方相信我**知道优化该往哪儿使劲、也知道什么时候
 > 该停手**,而不是展示我会写 kernel。
-> 配套:深度讲义 `docs/lectures/03_memory_bound_fusion.md`,数字出处 EXP-K05 / EXP-D23。
+> 配套:深度讲义 `docs/lectures/03_memory_bound_fusion.md`,数字出处 EXP-K05《LLM 融合逐元素算子三件套》 / EXP-D23《融合逐元素算子接入》。
 
 ---
 

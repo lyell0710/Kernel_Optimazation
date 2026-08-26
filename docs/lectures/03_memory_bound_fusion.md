@@ -1,6 +1,6 @@
 # 访存主导算子的优化边界:从字节账到带宽墙
 
-> 深度讲义 · 对应 `fused-norm/` `rope/` `activation/` 三个子项目与 EXP-K05。
+> 深度讲义 · 对应 `fused-norm/` `rope/` `activation/` 三个子项目与 EXP-K05《LLM 融合逐元素算子三件套》。
 > 前置:讲义 01(Tensor Core GEMM 版本梯)、02(wmma 架构税)。
 > 那两篇讲的是 compute-bound 算子怎么把算力吃满;这一篇讲 memory-bound 算子
 > 怎么把带宽吃满,以及**吃满之后会发生什么**——那才是本篇真正的主题。
