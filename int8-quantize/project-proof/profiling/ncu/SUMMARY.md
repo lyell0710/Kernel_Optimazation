@@ -2,8 +2,7 @@
 
 **Latencies**: from `BENCH_ITERS=100 ./build/int8_quantize_bench` (no profiler).
 
-**NCU metrics**: from `RUN_NCU_CSV=1 bash project-proof/scripts/profile_ncu.sh`,
-single kernel launch per version (quantize 是 element-wise 算子，一次 launch 处理整个 tensor).
+**NCU metrics**: from `RUN_NCU_CSV=1 bash project-proof/scripts/profile_ncu.sh`, single kernel launch per version（quantize 是 element-wise 算子，一次 launch 处理整个 tensor）.
 
 ## C++ versions (cols=1024)
 
@@ -25,9 +24,9 @@ single kernel launch per version (quantize 是 element-wise 算子，一次 laun
 
 ## 指标含义
 
-- **SM%**: SM 吞吐占峰值。量化是 memory-bound + 简单 ALU，SM% 通常不会太高。
-- **DRAM%**: HBM 带宽利用率。这个 kernel 读 4MB float + 写 1MB int8 = 5MB 总流量。
-- **Sec/Ld**: 完美 coalescing=4（float 标量）或 16（float4 vectorized）。
+- **SM%**： SM 吞吐占峰值。量化是 memory-bound + 简单 ALU，SM% 通常不会太高。
+- **DRAM%**： HBM 带宽利用率。这个 kernel 读 4MB float + 写 1MB int8 = 5MB 总流量。
+- **Sec/Ld**： 完美 coalescing=4（float 标量）或 16（float4 vectorized）。
 - **BankLd/BankSt**: shared memory bank conflict。Quantize 几乎不用 shared memory。
-- **L2Hit%**: scales[c] 数组只有 4KB，应该 100% 命中。input 是流式访问，L2 命中率会低。
-- **StallLSB%**: warp 等 HBM 的占比。memory-bound 算子这个值很高。
+- **L2Hit%**： scales[c] 数组只有 4KB，应该 100% 命中。input 是流式访问，L2 命中率会低。
+- **StallLSB%**： warp 等 HBM 的占比。memory-bound 算子这个值很高。

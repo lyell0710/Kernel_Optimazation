@@ -2,7 +2,7 @@
 
 ## 📊 性能对比（1024×1024 float32）
 
-| 版本 | 时延 (ms) | 相对 v0 | 优势 |
+| 版本 | 时延（ms） | 相对 v0 | 优势 |
 |------|----------|--------|------|
 | v4 | 0.0322 | 1.64× | **最快** |
 | cublas | 0.0437 | 1.21× | 基准 |
@@ -73,8 +73,8 @@ for (int s = blockDim.x / 2; s > 0; s >>= 1) {
   - 不可避免地产生一些 bank conflicts（虽然数量较少）
 
 **量化收益**：
-- v4: shared memory throughput ≈ **单次同步 1-2 个周期**
-- cublas: shared memory throughput ≈ **单次同步 3-4 个周期**
+- v4： shared memory throughput ≈ **单次同步 1-2 个周期**
+- cublas： shared memory throughput ≈ **单次同步 3-4 个周期**
 
 ---
 
@@ -151,13 +151,13 @@ for (int i = threadIdx.x; i < cols; i += blockDim.x) {
 ### 5️⃣ **cache 友好性**
 
 **数据局部性**：
-- v4: 每 thread 处理 4 个连续的 float（128 bytes aligned）
+- v4： 每 thread 处理 4 个连续的 float（128 bytes aligned）
   - L1 cache line (128 bytes) 一次 hit 覆盖 4 个元素
   - **L1 hit rate: ~95%**
   
-- cublas: 每 thread 处理 1 个 float
+- cublas： 每 thread 处理 1 个 float
   - L1 cache line 中有 31 个 float 是 "浪费的"
-  - **L1 hit rate: ~70%** （后续访问的局部性差）
+  - **L1 hit rate： ~70%**（后续访问的局部性差）
 
 ---
 

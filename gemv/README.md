@@ -3,12 +3,12 @@
 GEMV 手写 CUDA kernel 优化项目，采用和 `cuda-reduce` / `softmax` 一致的版本化实验方式。
 
 ## 版本
-- `baseline`: 单线程行内累加
-- `v0`: block 并行归约
-- `v1`: 每线程双元素展开 + restrict
-- `v2`: float4 向量化访存
-- `v3`: 一行一 warp（shuffle 归约）
-- `v4`: 多行共享 x-tile，降低重复读向量
+- `baseline`： 单线程行内累加
+- `v0`： block 并行归约
+- `v1`： 每线程双元素展开 + restrict
+- `v2`： float4 向量化访存
+- `v3`： 一行一 warp（shuffle 归约）
+- `v4`： 多行共享 x-tile，降低重复读向量
 
 ## 构建运行
 ```bash
@@ -36,7 +36,6 @@ python project-proof/scripts/plot_ncu_summary.py
 
 打包拷到 Mac：在仓库根目录 `bash scripts/pack_ncu_reps_for_mac.sh`，再按脚本提示 `scp` 各 `artifacts/ncu_for_mac/*.tar.gz`。
 
-输出目录：`project-proof/profiling/ncu/`
-图表目录：`project-proof/docs/figures/02-profiling/`
+输出目录：`project-proof/profiling/ncu/` 图表目录：`project-proof/docs/figures/02-profiling/`
 
 > 若提示 `ncu: command not found`，先安装 Nsight Compute（例如：`sudo apt install nsight-compute`）。

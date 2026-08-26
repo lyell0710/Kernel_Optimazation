@@ -2,9 +2,7 @@
 
 ## 开场
 
-我做过一个 softmax 优化项目，从基础的并行化骨架做到比 NVIDIA cuBLAS 快 26%。
-更重要的是，我还做了几个"反例版本"（v4.2 / v4.3 / v4.4），用控制变量法验证每个优化的真实贡献。
-最终的版本谱系展示了一个完整的故事：**优化是全链路的，不是单点的**。
+我做过一个 softmax 优化项目，从基础的并行化骨架做到比 NVIDIA cuBLAS 快 26%。更重要的是，我还做了几个"反例版本"（v4.2 / v4.3 / v4.4），用控制变量法验证每个优化的真实贡献。最终的版本谱系展示了一个完整的故事：**优化是全链路的，不是单点的**。
 
 ---
 
@@ -28,7 +26,7 @@ softmax(x_i) = exp(x_i - max(x)) / sum(exp(x - max(x)))
 
 ### cols=1024（完美对齐基准）
 
-| 版本 | 时延 (ms) | 相对 v0 | 说明 |
+| 版本 | 时延（ms） | 相对 v0 | 说明 |
 |------|----------|--------|------|
 | v0 | 0.0262 | 1.00× | 并行化骨架 |
 | v1 | 0.0262 | 1.00× | 位运算替代 modulo |
@@ -42,7 +40,7 @@ softmax(x_i) = exp(x_i - max(x)) / sum(exp(x - max(x)))
 
 ### cols=1500（非对齐场景）
 
-| 版本 | 时延 (ms) | 相对 v0 | 说明 |
+| 版本 | 时延（ms） | 相对 v0 | 说明 |
 |------|----------|--------|------|
 | v4 | 0.0221 | 1.18× | 退化 35%（多跑一轮，warp 半空） |
 | v4.3 | 0.0225 | 1.16× | 与 v4 接近（cols=1500 是 4 倍数，tail=0） |
@@ -146,8 +144,7 @@ for (int stride = blockSize >> 1; stride > 0; stride >>= 1) {
 
 ## v3：向量化内存访问（0.0231 ms）
 
-**问题**：GPU 的 L1 cache line 是 128 bits（4 个 float），但 v2 每次只读 1 个 float。
-1024 列 ÷ 256 线程 = 4 次迭代，每次浪费 3 个 float 的 cache 容量。
+**问题**：GPU 的 L1 cache line 是 128 bits（4 个 float），但 v2 每次只读 1 个 float。 1024 列 ÷ 256 线程 = 4 次迭代，每次浪费 3 个 float 的 cache 容量。
 
 **解决方案**：每线程处理 4 个连续元素：
 ```cuda
@@ -271,15 +268,14 @@ for (int c = main_cols + tid; c < cols; c += blockSize) {
 | 版本 | cols=1024 | cols=1500 |
 |------|----------|----------|
 | v4 | 0.0163 ms | 0.0221 ms |
-| **v4.3** | 0.0164 ms | **0.0225 ms** (略慢！) |
+| **v4.3** | 0.0164 ms | **0.0225 ms**（略慢！） |
 
 **反直觉的发现**：v4.3 在 cols=1500 上**反而比 v4 慢**。原因：
 - cols=1500 是 4 的倍数，v4.3 的 main_cols=1500、tail=0
 - v4.3 没有 tail 可优化，只是多了一些索引计算开销
 - v4.3 真正发力的场景是 cols 不是 packSize 倍数（如 cols=1023、1499）
 
-**踩过的坑**：最初我把 v4.3 对齐到 `blockSize × packSize = 1024`，结果 cols=1000 时 main_cols=0，整个 kernel 退化成纯标量，比 cuBLAS 还慢。修正后改成对齐到 packSize=4 才正确。
-**教训**：向量化的对齐粒度必须匹配数据布局，过粗的对齐会让向量化失效。
+**踩过的坑**：最初我把 v4.3 对齐到 `blockSize × packSize = 1024`，结果 cols=1000 时 main_cols=0，整个 kernel 退化成纯标量，比 cuBLAS 还慢。修正后改成对齐到 packSize=4 才正确。 **教训**：向量化的对齐粒度必须匹配数据布局，过粗的对齐会让向量化失效。
 
 **v4.3 的真正价值**：它揭示了 v4 真正的退化点不是"32/8 对齐"，而是 **cols 是否对齐到 blockSize × packSize = 1024**：
 - cols=1023：1 轮，不退化
@@ -340,8 +336,8 @@ __device__ float bad_block_reduce(float value, float* smem, int tid, int blockSi
 | **v4** | ✅ | ✅ | ✅ | **0.0163 ms** | **最优** |
 | v4.2 | ❌ (float2) | ✅ | ❌ | 0.0261 ms | 反例：去 warp shuffle → 退回 v0 |
 | v4.3 | ✅ | ✅ | ✅ | 0.0164 ms | 探索：main+tail 显式分离（对非对齐场景的尝试）|
-| **v4.4** | ✅ | **❌ (故意 conflict)** | ❌ | **0.0237 ms** | **反例：归约退化 → 慢于 cuBLAS** |
-| cuBLAS | ❌ (标量) | ✅ | ❌ | 0.0219 ms | 通用库参考 |
+| **v4.4** | ✅ | **❌（故意 conflict）** | ❌ | **0.0237 ms** | **反例：归约退化 → 慢于 cuBLAS** |
+| cuBLAS | ❌（标量） | ✅ | ❌ | 0.0219 ms | 通用库参考 |
 
 **三个关键发现**：
 1. **v4.2 → v4**：warp shuffle 把性能从 0.0261 拉到 0.0163 ms（+60%）
@@ -356,21 +352,15 @@ __device__ float bad_block_reduce(float value, float* smem, int tid, int blockSi
 
 ### 1. 向量化内存访问（float4）
 
-**v4**：`float4` 一次加载 4 个 float（128 bits），带宽利用率 100%
-**cuBLAS**：必须用标量访问，因为不敢假设用户传入的指针是 16-byte 对齐的
-**代价**：带宽利用率 100% → 25%，**个别收益 15-20%**
+**v4**：`float4` 一次加载 4 个 float（128 bits），带宽利用率 100% **cuBLAS**：必须用标量访问，因为不敢假设用户传入的指针是 16-byte 对齐的 **代价**：带宽利用率 100% → 25%，**个别收益 15-20%**
 
 ### 2. Warp-level shuffle
 
-**v4**：尾部 32 个元素用 `__shfl_down_sync`，无需 `__syncthreads()`
-**cuBLAS**：必须支持任意 blockSize（128/256/512/...），不能为 256 特化
-**代价**：全程 block 同步，每次约化等 256 线程，**个别收益 5-10%**
+**v4**：尾部 32 个元素用 `__shfl_down_sync`，无需 `__syncthreads()` **cuBLAS**：必须支持任意 blockSize（128/256/512/...），不能为 256 特化 **代价**：全程 block 同步，每次约化等 256 线程，**个别收益 5-10%**
 
 ### 3. Shared Memory 访问规整 + 参数特化
 
-**v4**：blockSize=256、packSize=4、cols=1024 三个常量编译期已知，shared memory 布局完美
-**cuBLAS**：运行时根据矩阵大小动态调，索引计算更复杂，少量 bank conflict
-**代价**：单次同步 1-2 周期 → 3-4 周期，**个别收益 5-10%**
+**v4**：blockSize=256、packSize=4、cols=1024 三个常量编译期已知，shared memory 布局完美 **cuBLAS**：运行时根据矩阵大小动态调，索引计算更复杂，少量 bank conflict **代价**：单次同步 1-2 周期 → 3-4 周期，**个别收益 5-10%**
 
 ### 综合：v4 vs cuBLAS 在不同 cols 上的优势
 
@@ -390,19 +380,15 @@ __device__ float bad_block_reduce(float value, float* smem, int tid, int blockSi
 cuBLAS 不是不聪明，而是面对**不同的约束**：
 
 ### 约束 1：对齐方式未知
-用户可能传 unaligned 指针 → 不敢用 float4
-（v4 假设 1024-row 是 16-byte 对齐，所以能用）
+用户可能传 unaligned 指针 → 不敢用 float4（v4 假设 1024-row 是 16-byte 对齐，所以能用）
 
 ### 约束 2：blockSize 必须运行时可调
-要支持 fp16/bf16/tf32/fp32 多种精度 → 不敢假设 blockSize=256
-（v4 在编译期就把 blockSize 写死了）
+要支持 fp16/bf16/tf32/fp32 多种精度 → 不敢假设 blockSize=256（v4 在编译期就把 blockSize 写死了）
 
 ### 约束 3：矩阵尺寸任意
-要支持 512×512 到 131072×131072 → 不能为特定尺寸特化
-（v4 只针对 1024×1024 优化）
+要支持 512×512 到 131072×131072 → 不能为特定尺寸特化（v4 只针对 1024×1024 优化）
 
-**结论**：cuBLAS 的"保守"是架构权衡，不是能力不足。
-如果它为 1024×1024 特化，代码会膨胀到无法维护。
+**结论**：cuBLAS 的"保守"是架构权衡，不是能力不足。如果它为 1024×1024 特化，代码会膨胀到无法维护。
 
 ---
 
@@ -433,8 +419,7 @@ v4 的 30% 加速来自消除冗余同步——warp 内的线程本身就是同�
 cuBLAS 不是不聪明，而是设计目标不同。理解这点对未来的系统设计很重要。
 
 ### 7. 知道什么时候停止
-v4 已经接近硬件极限。继续优化（如 grid-stride 多 block 处理一行）的收益小、成本是破坏简洁性。
-reduce 项目的 v6/v7 尝试过，性能反而下降 5.8 倍。
+v4 已经接近硬件极限。继续优化（如 grid-stride 多 block 处理一行）的收益小、成本是破坏简洁性。 reduce 项目的 v6/v7 尝试过，性能反而下降 5.8 倍。
 
 ---
 
@@ -484,6 +469,4 @@ warp shuffle 尾部归约。
 
 ## 最终一句话总结
 
-> **v4 比 cuBLAS 快 26%，靠的不是"算法更聪明"，而是 float4 + warp shuffle + 无 bank conflict 归约这三个优化的全链路配合。
-> 任何一环退化（v4.2 去 warp shuffle / v4.4 制造 bank conflict），整体就会输给通用库。
-> 这就是高性能 kernel 的本质：链路的最短木板，决定整体的高度。**
+> **v4 比 cuBLAS 快 26%，靠的不是"算法更聪明"，而是 float4 + warp shuffle + 无 bank conflict 归约这三个优化的全链路配合。任何一环退化（v4.2 去 warp shuffle / v4.4 制造 bank conflict），整体就会输给通用库。这就是高性能 kernel 的本质：链路的最短木板，决定整体的高度。**

@@ -1,7 +1,6 @@
 # GEMV 每版为什么这么改（v0 ~ v4）
 
-本文档对应 `src/gemv_baseline.cu ~ src/gemv_v4.cu`，统一模板为：
-**上一版瓶颈 -> 本版改动 -> 关键代码 -> 预期收益 -> NCU 观察点**。
+本文档对应 `src/gemv_baseline.cu ~ src/gemv_v4.cu`，统一模板为： **上一版瓶颈 -> 本版改动 -> 关键代码 -> 预期收益 -> NCU 观察点**。
 
 ## baseline -> v0：先把 dot product 并行化
 
@@ -133,7 +132,7 @@ __syncthreads();
 - v0: `0.054575 ms`（`11.34x`）
 - v1: `0.054945 ms`（`11.26x`）
 - v2: `0.043368 ms`（`14.27x`）
-- v3: `0.032540 ms`（`19.02x`，当前最优）
+- v3： `0.032540 ms`（`19.02x`，当前最优）
 - v4: `0.067143 ms`（`9.22x`）
 
 ## NCU 实测结论（同一轮 profile 均值）
@@ -142,5 +141,5 @@ __syncthreads();
 - v0: `SM 39.26% / DRAM 95.11% / OCC 95.33%`（memory-bound）
 - v1: `SM 38.27% / DRAM 95.27% / OCC 95.16%`（memory-bound）
 - v2: `SM 27.97% / DRAM 95.22% / OCC 96.05%`（memory-bound）
-- v3: `SM 16.01% / DRAM 95.19% / OCC 88.72%`（memory-bound，且同步更少）
-- v4: `SM 40.09% / DRAM 95.03% / OCC 96.54%`（memory-bound，但额外开销导致回退）
+- v3： `SM 16.01% / DRAM 95.19% / OCC 88.72%`（memory-bound，且同步更少）
+- v4： `SM 40.09% / DRAM 95.03% / OCC 96.54%`（memory-bound，但额外开销导致回退）

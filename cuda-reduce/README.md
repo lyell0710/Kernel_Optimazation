@@ -8,13 +8,13 @@
 - 生成结构化数据（CSV）和图表（PNG）用于文档留档
 
 ## 当前实现版本
-- `baseline`: 单线程 GPU 归约基线
+- `baseline`： 单线程 GPU 归约基线
 - `v0`: shared-memory tree reduction
-- `v1` / `v2`: 逐步优化的 block 内归约策略
-- `v3`: 每线程处理两个元素，减少访存轮次
-- `v4`: warp 尾归约优化，减少尾部同步开销
-- `v5`: 在 `v4` 基础上做 block 内循环展开
-- `v6`: 在 `v5` 基础上改为 grid-stride + two-pass 归约
+- `v1` / `v2`： 逐步优化的 block 内归约策略
+- `v3`： 每线程处理两个元素，减少访存轮次
+- `v4`： warp 尾归约优化，减少尾部同步开销
+- `v5`： 在 `v4` 基础上做 block 内循环展开
+- `v6`： 在 `v5` 基础上改为 grid-stride + two-pass 归约
 
 ## 最新基准快照（baseline ~ v6）
 - 输入规模：`N = 1 << 24`
@@ -35,11 +35,11 @@
 > 说明：基准结果会随设备温度、功耗策略、后台负载出现小幅波动。
 
 ## 目录结构
-- `src/`: 各版本 kernel 与 benchmark 入口
-- `include/`: 公共声明
-- `project-proof/data/`: 基准与环境 CSV
-- `project-proof/scripts/`: 画图脚本
-- `project-proof/docs/`: 图表与实验总结
+- `src/`： 各版本 kernel 与 benchmark 入口
+- `include/`： 公共声明
+- `project-proof/data/`： 基准与环境 CSV
+- `project-proof/scripts/`： 画图脚本
+- `project-proof/docs/`： 图表与实验总结
 
 ## 构建与运行
 ```bash

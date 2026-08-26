@@ -2,8 +2,7 @@
 
 **Latencies**: from `BENCH_ITERS=100 ./build/gemv_bench` (no profiler).
 
-**NCU metrics**: from `RUN_NCU_CSV=1 bash project-proof/scripts/profile_ncu.sh`,
-first kernel launch per version (single-kernel algorithm: each block/warp produces one row of `y`).
+**NCU metrics**: from `RUN_NCU_CSV=1 bash project-proof/scripts/profile_ncu.sh`, first kernel launch per version (single-kernel algorithm: each block/warp produces one row of `y`).
 
 | ver | lat(ms) | SM% | DRAM% | Occ% | Sec/Ld | BankLd | BankSt | L2Hit% | StallLSB% | StallBar% | StallSSB% |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -17,9 +16,9 @@ first kernel launch per version (single-kernel algorithm: each block/warp produc
 
 ## 指标含义
 
-- **SM%**: SM 吞吐占峰值。GEMV 是 memory-bound 算子，SM% 通常不高。
-- **DRAM%**: HBM 带宽利用率。GEMV 数据量是 mat (4096×2048×4B=32MB) + vec (8KB)，主要靠 mat 的连续读取打带宽。
-- **Sec/Ld**: 完美 coalescing=4。v3 用纯 lane-stride，应该是 4；v4 用 shared memory cache vec，索引模式不同。
-- **BankLd/BankSt**: shared memory bank conflict。v4 用了 shared memory cache vec，可能在这里浪费时间。
-- **L2Hit%**: L2 命中率。vec[c] 被 4 行共用，所以 L2 命中率应该不错。
-- **StallLSB%**: warp 等 HBM。memory-bound 算子这个值会很高。
+- **SM%**： SM 吞吐占峰值。GEMV 是 memory-bound 算子，SM% 通常不高。
+- **DRAM%**： HBM 带宽利用率。GEMV 数据量是 mat (4096×2048×4B=32MB) + vec (8KB)，主要靠 mat 的连续读取打带宽。
+- **Sec/Ld**： 完美 coalescing=4。v3 用纯 lane-stride，应该是 4；v4 用 shared memory cache vec，索引模式不同。
+- **BankLd/BankSt**： shared memory bank conflict。v4 用了 shared memory cache vec，可能在这里浪费时间。
+- **L2Hit%**： L2 命中率。vec[c] 被 4 行共用，所以 L2 命中率应该不错。
+- **StallLSB%**： warp 等 HBM。memory-bound 算子这个值会很高。

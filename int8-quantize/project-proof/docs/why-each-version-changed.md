@@ -1,7 +1,6 @@
 # INT8 Quantize 每版为什么这么改（v0 ~ v4）
 
-本文档对应 `src/quantize_baseline.cu ~ src/quantize_v4.cu`，统一模板为：
-**上一版瓶颈 -> 本版改动 -> 关键代码 -> 预期收益 -> NCU 观察点**。
+本文档对应 `src/quantize_baseline.cu ~ src/quantize_v4.cu`，统一模板为： **上一版瓶颈 -> 本版改动 -> 关键代码 -> 预期收益 -> NCU 观察点**。
 
 ## baseline -> v0：grid-stride 并行化
 
@@ -140,13 +139,13 @@ reinterpret_cast<char4*>(output + base + i)[0] = q;
 - v1: `0.011821 ms`（`10245.91x`）
 - v2: `0.010482 ms`（`11554.29x`）
 - v3: `0.007554 ms`（`16032.70x`）
-- v4: `0.006633 ms`（`18260.45x`，当前最优）
+- v4： `0.006633 ms`（`18260.45x`，当前最优）
 
 ## NCU 实测结论（同一轮 profile 均值）
 
-- baseline: `SM 0.12% / DRAM 0.40% / OCC 8.33%`（latency/并行度不足）
+- baseline： `SM 0.12% / DRAM 0.40% / OCC 8.33%`（latency/并行度不足）
 - v0: `SM 60.52% / DRAM 68.78% / OCC 81.10%`（memory-bound）
 - v1: `SM 55.14% / DRAM 83.30% / OCC 85.00%`（memory-bound）
 - v2: `SM 43.05% / DRAM 81.48% / OCC 86.37%`（memory-bound）
 - v3: `SM 24.88% / DRAM 84.03% / OCC 89.00%`（memory-bound）
-- v4: `SM 24.88% / DRAM 84.36% / OCC 85.72%`（memory-bound，且当前最优）
+- v4： `SM 24.88% / DRAM 84.36% / OCC 85.72%`（memory-bound，且当前最优）

@@ -6,33 +6,33 @@
 ## ✅ 完成内容
 
 ### 1. 代码实现
-- **文件**: `src/softmax_cublas.cu` (新增)
-- **特点**:
+- **文件**： `src/softmax_cublas.cu`（新增）
+- **特点**：
   - 使用 **warp-level 原语**（`__shfl_xor_sync`）进行高效约化
   - 256 线程/block，充分利用现代 GPU 的 warp 级并行
   - 三步法：找行最大值 → 指数求和 → 归一化
   
 ### 2. 构建系统更新
-- ✅ `include/softmax_common.h` — 声明 `softmax_cublas` 函数
-- ✅ `CMakeLists.txt` — 添加 cublas 编译和链接配置
-- ✅ `src/main.cu` — 集成 benchmark 测试和 profiling 支持
+- ✅ `include/softmax_common.h`— 声明 `softmax_cublas` 函数
+- ✅ `CMakeLists.txt`— 添加 cublas 编译和链接配置
+- ✅ `src/main.cu`— 集成 benchmark 测试和 profiling 支持
 
 ### 3. Benchmark & Visualization
 - ✅ 所有版本都通过正确性测试（max_diff ≤ 6.98e-09）
 - ✅ 4 份图表自动更新 cublas 数据（无 baseline）：
-  - `01-latency.png` — 绝对时延对比
-  - `02-latency-log.png` — 对数坐标下的时延
-  - `03-speedup-vs-v0.png` — **v4 (1.64×) > cublas (1.21×)**
-  - `04-correctness.png` — 所有版本正确性表格
+  - `01-latency.png`— 绝对时延对比
+  - `02-latency-log.png`— 对数坐标下的时延
+  - `03-speedup-vs-v0.png`— **v4 (1.64×) > cublas (1.21×)**
+  - `04-correctness.png`— 所有版本正确性表格
 
 ### 4. 文档更新
-- ✅ README.md — 加入 cublas 版本说明与性能对标数据
-- ✅ WHY_V4_BEATS_CUBLAS.md — 深度技术分析（为什么快 35%）
+- ✅ README.md— 加入 cublas 版本说明与性能对标数据
+- ✅ WHY_V4_BEATS_CUBLAS.md— 深度技术分析（为什么快 35%）
 - ✅ 性能故事完整：v0-v4 → cublas 的渐进优化链
 
 ## 📊 性能对标结果（1024×1024 float32）
 
-| 版本   | 时延 (ms) | 相对 v0 | 说明 |
+| 版本   | 时延（ms） | 相对 v0 | 说明 |
 |--------|----------|--------|------|
 | v0 | 0.0527 | 1.00× | 基础并行版本 |
 | v1 | 0.0526 | 1.00× | 小优化 |
@@ -114,5 +114,5 @@ python project-proof/scripts/plot_correctness.py
 
 ---
 
-**更新时间**: 2026-05-23  
-**状态**: ✅ 完成（所有测试通过，图表已生成）
+**更新时间**： 2026-05-23
+**状态**： ✅ 完成（所有测试通过，图表已生成）

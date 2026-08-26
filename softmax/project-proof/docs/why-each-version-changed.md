@@ -1,7 +1,6 @@
 # 为什么每版这么改（softmax v0 ~ v4）
 
-本文档对应 `src/softmax_v0.cu ~ src/softmax_v4.cu`，统一使用同一分析模板：
-**上一版瓶颈 -> 本版改动 -> 关键代码 -> 预期收益 -> NCU 观察点**。
+本文档对应 `src/softmax_v0.cu ~ src/softmax_v4.cu`，统一使用同一分析模板： **上一版瓶颈 -> 本版改动 -> 关键代码 -> 预期收益 -> NCU 观察点**。
 
 ## baseline -> v0：并行化主流程
 
@@ -167,12 +166,12 @@ for (int stride = blockSize >> 1; stride > 32; stride >>= 1) {
 - v1: `0.026240 ms`（`12.28x`）
 - v2: `0.025930 ms`（`12.43x`）
 - v3: `0.023244 ms`（`13.86x`）
-- v4: `0.016554 ms`（`19.46x`，当前最优）
+- v4： `0.016554 ms`（`19.46x`，当前最优）
 - 正确性：全部 `correctness_pass=true`，误差约 `1e-9 ~ 1e-8`
 
 ## NCU 实测结论（同一轮 profile 均值）
 
-- baseline: `SM 51.77% / DRAM 5.00% / OCC 37.07%`（并行度不足 + latency/mixed）
+- baseline： `SM 51.77% / DRAM 5.00% / OCC 37.07%`（并行度不足 + latency/mixed）
 - v0: `SM 75.55% / DRAM 55.26% / OCC 91.02%`（compute-dominant）
 - v1: `SM 76.28% / DRAM 52.20% / OCC 91.00%`（compute-dominant）
 - v2: `SM 77.35% / DRAM 52.93% / OCC 90.72%`（compute-dominant）

@@ -29,9 +29,9 @@
 - CPU: `AMD Ryzen 9 7945HX with Radeon Graphics`
 - CMake: `4.3.0`
 - Compiler: `g++ 11.4.0`
-- 输入规模: `N = 1 << 24`
-- baseline 启动配置: `<<<1,1>>>`
-- 计时方式: `CUDA events`，含 warmup
+- 输入规模： `N = 1 << 24`
+- baseline 启动配置： `<<<1,1>>>`
+- 计时方式： `CUDA events`，含 warmup
 
 ## 5) 图表文件
 - `project-proof/docs/figures/01-benchmark/01-latency-overview.png`

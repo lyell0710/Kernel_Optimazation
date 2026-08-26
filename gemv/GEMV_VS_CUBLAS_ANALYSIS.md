@@ -2,7 +2,7 @@
 
 ## 问题设置
 
-- **算子**：y = M × v，M 为 [rows=4096, cols=2048] 行优先矩阵，v 为 [2048]，y 为 [4096]
+- **算子**：y = M × v，M 为 [rows=4096， cols=2048] 行优先矩阵，v 为 [2048]，y 为 [4096]
 - **参考实现**：NVIDIA 真正的 `cublasSgemv`（不是手写仿品）
 - **GPU**：RTX 系列（与 softmax 项目同环境）
 
@@ -20,12 +20,12 @@ cublasSgemv(handle, CUBLAS_OP_T,
 
 ## 实测数据
 
-| 版本 | 时延 (ms) | 相对 baseline | 相对 cuBLAS |
+| 版本 | 时延（ms） | 相对 baseline | 相对 cuBLAS |
 |------|----------|--------------|------------|
-| baseline (CPU-like 单线程) | 0.6179 | 1.00× | 慢 16× |
-| v0 (一行一线程) | 0.0546 | 11.31× | 慢 43% |
-| v1 (位运算) | 0.0551 | 11.21× | 慢 45% |
-| v2 (修复 bank conflict) | 0.0503 | 12.29× | 慢 32% |
+| baseline（CPU-like 单线程） | 0.6179 | 1.00× | 慢 16× |
+| v0（一行一线程） | 0.0546 | 11.31× | 慢 43% |
+| v1（位运算） | 0.0551 | 11.21× | 慢 45% |
+| v2（修复 bank conflict） | 0.0503 | 12.29× | 慢 32% |
 | **v3 (warp-per-row + shuffle)** | **0.0324** | **19.07×** ✨ | **快 15%** |
 | v4 (block-per-multi-rows + shared x) | 0.0628 | 9.84× | 慢 65% |
 | **cuBLAS (cublasSgemv)** | **0.0381** | **16.22×** | 1.00× |
@@ -87,7 +87,7 @@ for (int base = 0; base < cols; base += 128) {
 1. **vec[c] 已经在 L1 cache 里**：v3 已经天然命中 cache，v4 多此一举把它放进 shared memory，反而多了 store + sync 一来一回的开销
 2. **`__syncthreads()` 加倍**：每个 tile 都要两次同步（load 完 + use 完）
 3. **block-level 归约比 warp shuffle 慢**：128 个线程的对半收缩需要 7 轮 syncthreads
-4. **kRowsPerBlock=4 但 blockSize=128**：实际并行度反而不如 v3 的 (32, 4)
+4. **kRowsPerBlock=4 但 blockSize=128**：实际并行度反而不如 v3 的（32, 4）
 
 **结果**：v4 是一个"过度设计"的反面教材——盲目加 shared memory 不仅没收益，反而把 v3 的优势全部抹掉。
 
@@ -105,14 +105,14 @@ for (int base = 0; base < cols; base += 128) {
 | 归约方式 | warp shuffle（无 syncthreads） | 通用 block reduce |
 | 内存访问 | row-major + lane 步长 32 | 必须处理 col-major + op=T 转置 |
 | vec 复用 | L1 cache 自动命中 | L1 cache 自动命中 |
-| 对齐假设 | rows%4==0, cols%32==0 | 无假设 |
-| 代码复杂度 | ~50 行 | (库内部) |
+| 对齐假设 | rows%4==0， cols%32==0 | 无假设 |
+| 代码复杂度 | ~50 行 |（库内部） |
 | 时延 | **0.0324 ms** | 0.0381 ms |
 
 **v3 快 15% 的原因**：
 - cuBLAS 走的是 op=T 的 transpose 路径，多一层逻辑
 - cuBLAS 不敢假设 4096 行恰好是 warp 数倍数，需要 boundary handling
-- v3 的 grid/block 配置是针对 (4096, 2048) 编译期固定的，cuBLAS 是运行时启发式选择
+- v3 的 grid/block 配置是针对（4096, 2048） 编译期固定的，cuBLAS 是运行时启发式选择
 
 ---
 
@@ -138,15 +138,13 @@ for (int base = 0; base < cols; base += 128) {
 ## 工程教训
 
 ### 1. **手写 kernel 能赢 cuBLAS，但只在特定 shape 上**
-v3 在 (4096, 2048) 上快 15%，但换成其他尺寸可能就输了。cuBLAS 的优势是稳定。
+v3 在（4096, 2048） 上快 15%，但换成其他尺寸可能就输了。cuBLAS 的优势是稳定。
 
 ### 2. **shared memory 不是越多越好**
-v4 用 shared memory 缓存 vec，结果比 v3 的纯 L1 cache 方案慢一倍。
-**当 L1 cache 已经能 cover 时，shared memory 是负优化**。
+v4 用 shared memory 缓存 vec，结果比 v3 的纯 L1 cache 方案慢一倍。 **当 L1 cache 已经能 cover 时，shared memory 是负优化**。
 
 ### 3. **warp shuffle 是 reduce 算子的"王炸"**
-v3 用 warp shuffle 完全避开了 `__syncthreads()`，这是它打过 cuBLAS 的核心原因。
-和 softmax 项目的 v4 同理：**消除同步 > 减少计算量**。
+v3 用 warp shuffle 完全避开了 `__syncthreads()`，这是它打过 cuBLAS 的核心原因。和 softmax 项目的 v4 同理：**消除同步 > 减少计算量**。
 
 ### 4. **GEMV 是 memory bound 算子**
 - 数据量：4096 × 2048 × 4B = 32 MB（M 矩阵）
@@ -165,6 +163,4 @@ v3 用 warp shuffle 完全避开了 `__syncthreads()`，这是它打过 cuBLAS �
 
 ## 一句话总结
 
-> **v3 比 cuBLAS 快 15%，靠的是 warp-per-row + warp shuffle + L1 cache 自然复用 vec 的三件套配合。
-> v4 加了 shared memory 想"再优化一下"，结果反而比 cuBLAS 慢 65%。
-> 这再次证明：高性能 = 全链路一致优化，木桶的最短板决定整体的高度。**
+> **v3 比 cuBLAS 快 15%，靠的是 warp-per-row + warp shuffle + L1 cache 自然复用 vec 的三件套配合。 v4 加了 shared memory 想"再优化一下"，结果反而比 cuBLAS 慢 65%。这再次证明：高性能 = 全链路一致优化，木桶的最短板决定整体的高度。**

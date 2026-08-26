@@ -1,7 +1,6 @@
 # Reduce NCU Metric Summary (RTX 4070 Laptop, N=16.7M floats)
 
-**Latencies**: from `BENCH_ITERS=100 ./build/reduce_bench` (no profiler attached).
-**NCU metrics**: from `RUN_NCU_CSV=1 bash project-proof/scripts/profile_ncu.sh` (single launch per version, first kernel stage shown).
+**Latencies**: from `BENCH_ITERS=100 ./build/reduce_bench` (no profiler attached). **NCU metrics**: from `RUN_NCU_CSV=1 bash project-proof/scripts/profile_ncu.sh` (single launch per version, first kernel stage shown).
 
 | ver | lat(ms) | SM% | DRAM% | Occ% | Sec/Ld | BankLd | BankSt | L2Hit% | StallLSB% | StallBar% |
 |---|---|---|---|---|---|---|---|---|---|---|

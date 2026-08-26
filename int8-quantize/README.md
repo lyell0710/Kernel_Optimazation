@@ -3,12 +3,12 @@
 INT8 per-channel symmetric quantize CUDA kernel 优化项目，保持和 `reduce/softmax/gemv` 一致的工程组织方式。
 
 ## 版本
-- `baseline`: 单线程串行量化
-- `v0`: grid-stride 一线程一元素
-- `v1`: 每线程2元素展开 + restrict
-- `v2`: 每线程4元素展开
-- `v3`: 一块一channel，scale寄存器复用
-- `v4`: float4读 + char4写向量化
+- `baseline`： 单线程串行量化
+- `v0`： grid-stride 一线程一元素
+- `v1`： 每线程 2 元素展开 + restrict
+- `v2`： 每线程 4 元素展开
+- `v3`： 一块一 channel，scale 寄存器复用
+- `v4`： float4 读 + char4 写向量化
 
 ## 构建运行
 ```bash
@@ -36,7 +36,6 @@ python project-proof/scripts/plot_ncu_summary.py
 
 打包拷到 Mac：仓库根目录执行 `bash scripts/pack_ncu_reps_for_mac.sh`。
 
-输出目录：`project-proof/profiling/ncu/`
-图表目录：`project-proof/docs/figures/02-profiling/`
+输出目录：`project-proof/profiling/ncu/` 图表目录：`project-proof/docs/figures/02-profiling/`
 
 > 若提示 `ncu: command not found`，先安装 Nsight Compute（例如：`sudo apt install nsight-compute`）。

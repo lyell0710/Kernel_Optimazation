@@ -8,12 +8,12 @@
 - 每版只改一个核心点，便于定位收益和问题
 
 ## 版本说明
-- `v0`: 第一版并行化骨架（block 内两次归约：max + sum）
-- `v1`: 小优化（分支/地址计算等低风险改动）
-- `v2`: 规整 shared-memory 归约访问模式（降低冲突风险）
-- `v3`: 每线程多元素 + 向量化 load/store
-- `v4`: 归约尾部 warp 化，减少不必要同步 → **最优版本**
-- `cublas`: 参考实现，展示 cuBLAS 模式的高效 softmax（warp-level 原语）
+- `v0`： 第一版并行化骨架（block 内两次归约：max + sum）
+- `v1`： 小优化（分支/地址计算等低风险改动）
+- `v2`： 规整 shared-memory 归约访问模式（降低冲突风险）
+- `v3`： 每线程多元素 + 向量化 load/store
+- `v4`： 归约尾部 warp 化，减少不必要同步 → **最优版本**
+- `cublas`： 参考实现，展示 cuBLAS 模式的高效 softmax（warp-level 原语）
 
 ## 构建运行
 ```bash
@@ -32,7 +32,7 @@ cmake --build build -j
 ### 性能对标
 测试矩阵：1024×1024 float32
 
-| 版本 | 时延 (ms) | 相对 v0 | 说明 |
+| 版本 | 时延（ms） | 相对 v0 | 说明 |
 |------|----------|--------|------|
 | v0 | 0.0527 | 1.00× | 基础并行版本 |
 | v1 | 0.0526 | 1.00× | 小优化 |
@@ -54,10 +54,10 @@ python project-proof/scripts/plot_correctness.py
 ```
 
 生成文件位于 `project-proof/docs/figures/01-benchmark/`：
-- `01-latency.png` — 绝对时延对比
-- `02-latency-log.png` — 对数坐标下的延迟
-- `03-speedup-vs-v0.png` — 相对 v0 的加速倍数
-- `04-correctness.png` — 正确性验证表
+- `01-latency.png`— 绝对时延对比
+- `02-latency-log.png`— 对数坐标下的延迟
+- `03-speedup-vs-v0.png`— 相对 v0 的加速倍数
+- `04-correctness.png`— 正确性验证表
 
 ## NCU（按版本生成 `.ncu-rep`）
 ```bash
@@ -93,6 +93,6 @@ cuBLAS 版本采用 **warp-level 原语**进行高效约化：
 - 为面试和论文提供量化的性能对标
 
 ## 相关文档
-- 📖 **为什么 v4 比 cuBLAS 快**：`WHY_V4_BEATS_CUBLAS.md` — 深度技术分析
+- 📖 **为什么 v4 比 cuBLAS 快**：`WHY_V4_BEATS_CUBLAS.md`— 深度技术分析
 - 优化说明：`project-proof/docs/why-each-version-changed.md`
 - 项目介绍：`project-intro.md`

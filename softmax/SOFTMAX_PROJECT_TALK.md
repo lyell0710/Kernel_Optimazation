@@ -346,6 +346,6 @@ cmake -S . -B build && cmake --build build -j
 1. **深度优化的完整过程**：从基础并行化到消除每个瓶颈
 2. **GPU 硬件理解**：shared memory、bank conflict、warp 级通信、同步开销
 3. **量化分析能力**：用数据说话，而不是凭感觉
-4. **工程judgment**：什么时候继续，什么时候停止
+4. **工程 judgment**：什么时候继续，什么时候停止
 
 对于做 AI 推理优化、高性能计算的工作，这个项目直接相关。
