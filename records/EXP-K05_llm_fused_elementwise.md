@@ -1,5 +1,7 @@
 # EXP-K05 · LLM 融合逐元素算子三件套:fused_add_rmsnorm / rope / silu_and_mul
 
+> **一句话结论**：三个融合逐元素算子在 HBM 区间都贴到理论峰值 **89.9%–92.0%**，手写 CUDA、Triton 与 torch.compile 三者打平；贴上带宽墙之后语言不再重要，分水岭是融不融合——pytorch_eager 只有 17.5%–55.1%。
+
 ## 0 元信息
 
 | 项 | 值 |

@@ -1,5 +1,7 @@
 # EXP-K02 · CUDA Tensor Core GEMM 版本梯(v0→v4,vs 真 cuBLAS)
 
+> **一句话结论**：GEMM 的性能台阶来自**指令世代**而非访存微调：smem tiling 只给 +25%，换用 wmma 一步 ×13.8；v4 做到 133.1 TFLOPS，为真 cuBLAS 的 85.6%。
+
 ## 0. 元信息
 
 | 字段 | 值 |

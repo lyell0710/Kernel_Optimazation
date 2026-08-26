@@ -1,5 +1,7 @@
 # EXP-K03 · CUDA FA2 forward 简化版版本梯(v0→v4,量化 wmma 架构税)
 
+> **一句话结论**：同一套 wmma 工具箱，GEMM 够到 cuBLAS 的 86%，FA2 却只到 34.8 TFLOPS——自家 Triton 版的 28%。越靠融合吃饭的算子，越需要 mma 级的寄存器控制，这就是 wmma 的架构税。
+
 ## 0. 元信息
 
 | 字段 | 值 |
