@@ -4,6 +4,28 @@
 
 本文是六个项目（reduce、softmax、gemv、int8 quantize、Tensor Core GEMM、FA2 forward）的统一深读入口。主轴是方法论，每个项目作为落地案例，跨项目规律收尾；现行数字一律附实验记录指针。门面与性能结果表见 [README.md](README.md)。
 
+## 目录
+
+- [方法论](#方法论)
+  - [profile 优先于直觉](#profile-优先于直觉)
+  - [控制变量归因](#控制变量归因)
+  - [先判定 memory-bound 还是 compute-bound](#先判定-memory-bound-还是-compute-bound)
+  - [优化是全链路问题](#优化是全链路问题)
+- [项目拆解](#项目拆解)
+  - [reduce:两个区间,两个结论](#reduce两个区间两个结论)
+  - [softmax:与 cuDNN 的形状敏感性,加控制变量法归因](#softmax与-cudnn-的形状敏感性加控制变量法归因)
+  - [gemv:极简结构反超,与一次真实工程踩坑](#gemv极简结构反超与一次真实工程踩坑)
+  - [int8 quantize:kernel 融合对比 PyTorch eager](#int8-quantizekernel-融合对比-pytorch-eager)
+  - [Tensor Core GEMM:wmma 版本梯](#tensor-core-gemmwmma-版本梯)
+  - [FA2 forward:wmma 架构税的定量测量](#fa2-forwardwmma-架构税的定量测量)
+- [跨项目规律](#跨项目规律)
+  - [memory-bound 阶段,shared memory 微优化收益趋近于 0](#memory-bound-阶段shared-memory-微优化收益趋近于-0)
+  - [特化 scope 内,hardware-optimal 胜过 algorithm-optimal](#特化-scope-内hardware-optimal-胜过-algorithm-optimal)
+  - [NCU 指标必须与时延趋势联读](#ncu-指标必须与时延趋势联读)
+  - [前置优化需要后置环节激活才能兑现](#前置优化需要后置环节激活才能兑现)
+- [算子带宽画像](#算子带宽画像)
+- [文档索引](#文档索引)
+
 ## 方法论
 
 贯穿全部项目的四条原则，按重要性排序。
