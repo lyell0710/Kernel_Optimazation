@@ -1,6 +1,6 @@
 # LAB_JOURNAL — Kernel_Optimazation
 
-## §1 4090 重基准 + roofline 迁移(2026-08-23,EXP-K01)
+## §1 4090 重基准 + roofline 迁移(2026-08-23,EXP-K01《4090 重基准》)
 
 - **做了什么**：四 kernel(reduce/softmax/gemv/int8-quantize)在 4090 全量重跑既有 bench（未改源码），与 git HEAD 里的 4070-Laptop CSV 逐版本对照； 重生成全部图。
 - **为什么**：阶段一清单"简历数字换桌面卡 + 记录 roofline 位置迁移"。
@@ -47,7 +47,7 @@
 - **产物**：9 份 UTC raw + 3 份 3rounds 聚合 + 记录/README/PORTFOLIO 同步。
 - **下一步**：无（本仓 backlog 清零；v5 mma 技能票仍为可选项）。
 
-## 2026-08-26 LLM 融合逐元素算子三件套(EXP-K05)
+## 2026-08-26 LLM 融合逐元素算子三件套(EXP-K05《LLM 融合逐元素算子三件套》)
 
 **做了什么**：新增三个子项目 `fused-norm/`(v0–v4)、`rope/`(v0–v4)、 `activation/`(v0–v3)，共 14 个手写 CUDA kernel；新增共享工装 `scripts/bench_common.py`（统一计时/provenance/扩展构建）与 `scripts/derive_stability.py`（raw→derived 归并）。三个算子各跑 3 轮 × 4 个工作区间， 七/八条臂（手写 v0–v4 + pytorch_eager + torch_compile + triton）。配套文档：三份 README + 三份 project-intro、深度讲义 `docs/lectures/03_memory_bound_fusion.md`、面试讲稿 `docs/talk/fused_ops_talk.md`、白板卡 `docs/talk/whiteboard_card_byte_ledger.md`、记录 `records/EXP-K05`。
 
@@ -60,3 +60,30 @@
 **踩坑两条**：①torch cpp_extension 构建被中断会残留 `lock` 文件，之后每次 `load()` 无限等锁且没有编译进程，现象极像死机——已在 `bench_common.build_ext` 里主动清理。 ②就地算子的 bench 必须把 clone 放在计时闭包之外；写进去会让该臂每次迭代白搬整个张量，表现为「恰好慢 2 倍」——**恰好整数倍是 harness bug 的指纹**。
 
 **下一步**：接引擎（已完成，见 llm-engine#EXP-D23《融合逐元素算子接入》）；int8 W8A8 linear 接引擎。
+
+## 2026-08-26(续)W8A8 linear 完整链路(EXP-K06《W8A8 linear 完整链路》)
+
+**做了什么**:新增子项目 `w8a8/` —— per-token 动态量化(v0/v1/v2)、反量化
+epilogue(v0/v1)、decode 用的 dp4a int8 GEMV(v0/v1),INT8 GEMM 直接用
+`torch._int_mm`。bench 覆盖 prefill 四档形状 + decode 三档(按权重工作集分 L2/HBM)。
+配套 README + project-intro + records/EXP-K06。
+
+**为什么**:用户指出面试被问「int8 量化算子性能怎么样?有没有放到引擎里?」。
+本仓此前只有量化这一步(int8-quantize),而只插量化算子而后面仍走 bf16 GEMM
+是负收益。必须补完整链路才能回答。
+
+**关键数字**:prefill 1.905–2.161x;decode HBM 区间 1.972x(L2 区间 5.30x、
+跨层级的 8.82x 为无效数字);三步分解 量化 1.8% / GEMM 78.5% / 反量化 26.7%;
+**权重多一次 .contiguous() → 整条链路 2.161x 变 0.734x**;
+`torch._int_mm` 要求 M>16,decode 走不通(硬约束)。
+
+**产物路径**:`w8a8/`、`records/EXP-K06_w8a8_linear.md`、
+`w8a8/project-proof/data/`。
+
+**踩坑**:①bench 里写了多余的 `acc.copy_(torch._int_mm(...))`,白搬 100 MB,
+占整条链路近四分之一——分解计时之和对不上总时间就是这类多余搬运的信号;
+②int8 GEMV 的 x_scale 第一版用主机 double 传参,调用方要 `.item()`,
+那是设备到主机的隐式同步,decode 逐层放大成每 token 上百次;改传设备指针。
+③derive_stability.py 遇到 nan 列会抛 AttributeError,已加剔除。
+
+**下一步**:接引擎(已完成,见 llm-engine#EXP-D24)。
