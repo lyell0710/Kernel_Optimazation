@@ -2,6 +2,17 @@
 
 > 对象：`gemm/src/` 五个 kernel（v0 naive → v1 smem tile → v2 wmma → v3 cp.async 双缓冲 → v4 128×128 大 tile），对照真 cuBLAS（`cublasGemmEx`，调用点验真）。数字权威：`gemm/project-proof/data/derived_gemm4096_stability.csv`（3 轮 mean±std），实验记录 = records/EXP-K02_cuda_gemm_tc_ladder.md（下文简称 EXP-K02《CUDA Tensor Core GEMM 版本梯》）。协议：M=N=K=4096，fp16 存储 / fp32 累加，行主序，RTX 4090(sm_89)。引用规矩：凡属论文/官方文档的论断一律给出处（标题 + arXiv/DOI 编号 + 章节或公式编号；文档给 URL 路径 + 小节号），关键句给原文；凡属本讲义补出的推导或折算，行内标注「本讲义折算」或「账面推断」；无法用检索确认的说法标注「未核实」。本仓自己的数字一律带 EXP 锚，原始 CSV 路径写在正文里。
 
+## 目录
+
+- [1 这一篇回答什么问题](#1-这一篇回答什么问题)
+- [2 直觉与第一性原理](#2-直觉与第一性原理)
+- [3 完整推导与机制](#3-完整推导与机制)
+- [4 代码逐段走读(按执行顺序)](#4-代码逐段走读按执行顺序)
+- [5 实验数据怎么读](#5-实验数据怎么读)
+- [6 误区与边界](#6-误区与边界)
+- [7 连环追问](#7-连环追问)
+- [8 工业对照与延伸](#8-工业对照与延伸)
+
 ## 1 这一篇回答什么问题
 
 这一篇把 GEMM 从 5.2 TFLOPS(v0)走到 133.1 TFLOPS（v4，真 cuBLAS 的 85.6%，EXP-K02 §5）的每一级增量拆成可核验的账：为什么 smem tile 化只有 +25%，为什么换 wmma 一步 13.8 倍，cp.async 的 commit/wait_prior 计数如何推，128×128 大 tile 的复用账怎么算，以及理论 occupancy 33% 全梯最低的 v4 为什么反而最快。读完你应当能：手推 compute-bound 判定与 tile 复用的算术强度公式；逐行解释 v3/v4 的异步流水线为什么正确；面对「occupancy 低是不是问题」「你和 cuBLAS 差在哪」这类追问给出有实验锚的回答。
