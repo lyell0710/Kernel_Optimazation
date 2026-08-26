@@ -94,3 +94,36 @@
 - **教训**:对照物也要 3 轮;单轮领先幅度可能一半是对照的坏轮。
 - **产物**:9 份 UTC raw + 3 份 3rounds 聚合 + 记录/README/PORTFOLIO 同步。
 - **下一步**:无(本仓 backlog 清零;v5 mma 技能票仍为可选项)。
+
+## 2026-08-26 LLM 融合逐元素算子三件套(EXP-K05)
+
+**做了什么**:新增三个子项目 `fused-norm/`(v0–v4)、`rope/`(v0–v4)、
+`activation/`(v0–v3),共 14 个手写 CUDA kernel;新增共享工装
+`scripts/bench_common.py`(统一计时/provenance/扩展构建)与
+`scripts/derive_stability.py`(raw→derived 归并)。三个算子各跑 3 轮 × 4 个工作区间,
+七/八条臂(手写 v0–v4 + pytorch_eager + torch_compile + triton)。
+配套文档:三份 README + 三份 project-intro、深度讲义
+`docs/lectures/03_memory_bound_fusion.md`、面试讲稿 `docs/talk/fused_ops_talk.md`、
+白板卡 `docs/talk/whiteboard_card_byte_ledger.md`、记录 `records/EXP-K05`。
+
+**为什么(决策依据)**:①本仓「什么时候该用手写 CUDA」此前只有两个点
+(GEMM 85.6% / FA2 28%),缺访存主导这一类;②此前所有「vs Triton/SDPA」数字都是
+跨 harness 对比、只能标注推断级——这次把手写 kernel 绑进 torch,四类臂共用同一段
+CUDA-event 计时,直接把这条限定去掉;③三个算子都是自研引擎正在等的东西,
+算子级做完可以立刻接进去验端到端。
+
+**关键数字**:HBM 区间手写最优 920.3 / 905.9 / 927.7 GB/s(91.3% / 89.9% / 92.0% 峰值),
+与 Triton、torch.compile 两两差 <2%;相对 pytorch_eager 5.22x / 5.10x / 1.67x。
+L2 区间相对 torch.compile 3.19x / 5.61x / 10.6x。七条跑前锁定的预测:四条成立
+(H1/H4/H5/H6/H7),两条被推翻(H2/H3,fused-norm 的向量化与寄存器缓存双双零收益,
+原因由带宽上界反推出「第二次读从未出片」)。
+
+**产物路径**:`{fused-norm,rope,activation}/`、`records/EXP-K05_llm_fused_elementwise.md`、
+`docs/lectures/03_memory_bound_fusion.md`、各 `project-proof/data/`。
+
+**踩坑两条**:①torch cpp_extension 构建被中断会残留 `lock` 文件,之后每次 `load()`
+无限等锁且没有编译进程,现象极像死机——已在 `bench_common.build_ext` 里主动清理。
+②就地算子的 bench 必须把 clone 放在计时闭包之外;写进去会让该臂每次迭代白搬整个
+张量,表现为「恰好慢 2 倍」——**恰好整数倍是 harness bug 的指纹**。
+
+**下一步**:接引擎(已完成,见 llm-engine#EXP-D23);int8 W8A8 linear 接引擎。

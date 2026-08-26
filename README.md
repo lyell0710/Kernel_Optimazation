@@ -1,8 +1,8 @@
 # Kernel_Optimazation
 
-*手写 CUDA kernel 版本梯:六个算子,从 naive 到打平或反超通用库*
+*手写 CUDA kernel 版本梯:九个算子,从 naive 到打平或反超通用库*
 
-本项目考察手写 CUDA kernel 在什么条件下能赢过 cuBLAS / PyTorch,凭什么赢,又被哪一层机制限制。六个算子(reduce、softmax、gemv、int8 quantize、Tensor Core GEMM、FA2 forward)各自构成一条完整的优化版本梯:从 naive 实现逐级改进至打平或反超通用库,每一步提速可测量、可归因、可复现。测量显示,赢的三种形态(shape 特化、贴合硬件的极简结构、kernel 融合)与输的结构性原因(如 wmma 的架构税)都能落到具体机制上。方法论、逐项目拆解与跨项目规律见 [PORTFOLIO.md](PORTFOLIO.md)。
+本项目考察手写 CUDA kernel 在什么条件下能赢过 cuBLAS / PyTorch,凭什么赢,又被哪一层机制限制。九个算子(reduce、softmax、gemv、int8 quantize、Tensor Core GEMM、FA2 forward,以及 LLM 前向的三个融合逐元素算子 fused_add_rmsnorm、RoPE、silu_and_mul)各自构成一条完整的优化版本梯:从 naive 实现逐级改进至打平或反超通用库,每一步提速可测量、可归因、可复现。测量显示,赢的三种形态(shape 特化、贴合硬件的极简结构、kernel 融合)与输的结构性原因(如 wmma 的架构税)都能落到具体机制上。方法论、逐项目拆解与跨项目规律见 [PORTFOLIO.md](PORTFOLIO.md)。
 
 ## 性能结果
 
@@ -16,6 +16,9 @@
 | softmax | 对齐 1024x1024 比 cuDNN 快 **6.7%**(0.007768 vs 0.008291 ms,3 轮);非对齐 1024x1500 反被 cuDNN 快 9.9% —— 手写的形状敏感性代价 | [EXP-K04](records/EXP-K04_standard_library_baselines.md),`records/data/exp_k04_softmax_3rounds.csv` |
 | gemv | v3 比真 `cublasSgemv` 快 **34.1%**(4096x2048,3 轮;前一轮同协议 37.8%,差异来自 cuBLAS 侧轮间波动) | [EXP-K04](records/EXP-K04_standard_library_baselines.md),`records/data/exp_k04_gemv_3rounds.csv` |
 | int8 quantize | v4 **5.57±0.03 µs**(1024² per-channel symmetric);单 kernel 融合较 PyTorch eager 快 6.6x(4070 Laptop 口径,单轮) | [EXP-K01](records/EXP-K01_4090_rebench.md),`records/data/exp_k01_int8_quantize_3rounds.csv` |
+| fused_add_rmsnorm | HBM 区间(1.0 GB)v3 达 HBM 理论峰值 **91.3%**(920.3 GB/s),相对 PyTorch eager **5.22x**,相对 torch.compile 与 Triton **打平**(差 <0.6%);L2 常驻区间(64 MB)相对 torch.compile **3.19x** | [EXP-K05](records/EXP-K05_llm_fused_elementwise.md),`fused-norm/project-proof/data/derived_fused-norm_stability.csv` |
+| RoPE | HBM 区间(336 MB)v4 达 **89.9%**(905.9 GB/s),相对 PyTorch eager **5.10x**;同一处「q/k 合并 launch」优化在 HBM 区间 -1.1%、在 decode 区间 **1.43x**,收益差四十倍 | [EXP-K05](records/EXP-K05_llm_fused_elementwise.md),`rope/project-proof/data/derived_rope_stability.csv` |
+| silu_and_mul | HBM 区间(600 MB)v3 达 **92.0%**(927.7 GB/s);融合一级实测 **1.675x**,与字节账预测的 5/3=1.667x 精确吻合;L2 区间相对 torch.compile **10.6x** | [EXP-K05](records/EXP-K05_llm_fused_elementwise.md),`activation/project-proof/data/derived_activation_stability.csv` |
 
 ![GEMM Tensor Core 版本梯](figures/01_gemm_tc_ladder.png)
 
@@ -32,6 +35,22 @@
 图表全部由脚本从原始数据生成(matplotlib):`python scripts/plot_readme_figures.py`。
 
 ## 关键发现
+
+**贴上带宽墙之后,语言不再重要;分水岭是融不融合。** 三个访存主导的融合逐元素算子上,
+HBM 区间的手写 CUDA(905.9–927.7 GB/s)、Triton(898.5–928.0)与 torch.compile
+(877.2–925.7)两两差距均小于 2%,统统落在 88–92% 峰值;而未融合的 PyTorch eager
+落后 1.7–5.2 倍。手写 CUDA 的价值只在两处仍然成立:L2 常驻区间(相对 torch.compile
+快 3.2–10.6 倍)与 decode 的 launch 敏感区间(相对 Triton 快 2.5–11 倍)——
+而推理引擎恰好常驻这两个区间。配合 GEMM(手写够到真 cuBLAS 85.6%)与 FA2
+(同一套 wmma 只够到自家 Triton 28%),「什么时候该用手写 CUDA」由此成为一条
+三点曲线:价值集中在需要 mma 级寄存器控制的场合。
+
+**字节账要在 HBM 层面记,不能在指令层面记。** fused_add_rmsnorm 的版本梯上,
+按指令计数预测「寄存器缓存消掉第二遍重读」应有 +25%,实测 0%。原因可以从测量本身
+反推:v2 的有效带宽按 4 次访存计得 920 GB/s;若第二遍重读真的走到 HBM(5 次访存),
+实际带宽将是 920x10/8 = 1150 GB/s,超过 1008 的物理峰值,不可能。所以这次重读
+从一开始就被 L1/L2 接住,从未到过显存——被优化掉的是一次缓存命中而非显存访问。
+静态字节账高估可优化空间的根源,是它把「发出一次 load 指令」等同于「搬一次显存」。
 
 **性能台阶来自指令世代,而非访存微调。** GEMM 版本梯上,smem tile 化(v0 至 v1)只带来 +25%,换用 Tensor Core 指令(v1 至 v2,wmma)一步 13.8x。compute-bound 算子里访存微调只是坡,指令世代才是台阶;反过来,memory-bound 的 reduce / gemv 里指令层面的微调收益趋近于 0。应先判定算子是 memory-bound 还是 compute-bound,再选优化手段——错配的优化在错误的方向上没有回报。
 
@@ -145,6 +164,7 @@ bash scripts/run_ncu_all.sh
 | [EXP-K02](records/EXP-K02_cuda_gemm_tc_ladder.md) | Tensor Core GEMM 版本梯 v0 至 v4:性能台阶来自指令世代(v1 至 v2 为 13.8x),v4 133.1 TFLOPS = 真 cuBLAS 的 85.6%,理论 occupancy 33% 最低却最快。 |
 | [EXP-K03](records/EXP-K03_cuda_fa2_ladder.md) | CUDA FA2 版本梯 v0 至 v4:同一套 wmma 工具箱只到 34.8 TFLOPS(同协议 Triton 版的 28%,跨 harness)——架构税量化,瓶颈在 shared memory 往返的相位链。 |
 | [EXP-K04](records/EXP-K04_standard_library_baselines.md) | 补齐同算子官方基准(CUB / cuDNN)并分 L2 常驻与 HBM-bound 两区间重测:HBM-bound 时 reduce v7 达 HBM 理论带宽 93.9%、与 CUB 差 0.7%,L2 常驻时 CUB 快 33.3%;softmax 对齐形状快 cuDNN 6.7%、非对齐慢 9.9%;gemv v3 快 `cublasSgemv` 34.1%。 |
+| [EXP-K05](records/EXP-K05_llm_fused_elementwise.md) | LLM 融合逐元素算子三件套(fused_add_rmsnorm / RoPE / silu_and_mul)版本梯,并首次把手写 CUDA、Triton、PyTorch eager、torch.compile 四类臂放进同一个 harness 受测:HBM 区间三种实现两两差 <2%,L2 与 decode 区间手写领先 3.2–10.6x 与 2.5–11x;七条跑前锁定的预测中四条成立、两条被数据推翻。 |
 
 ## 测量方法
 

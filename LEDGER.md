@@ -42,6 +42,10 @@
 
 ## 待办 / backlog(当前全部非阻塞)
 
+- 2026-08-26 EXP-K05 新增待办:①fused-norm「第二次读被缓存接住」目前是从带宽上界
+  反推的推断,待 NCU 权限后以 lts__t_sectors_op_read / dram__sectors_read 比值实测;
+  ②rope v2 在 HBM 区间比 v1 慢 1.1%(超 3 轮 std)未剖;③三个算子均未做 autotune,
+  仅 rope 单独扫过 BLOCK×num_warps(最优与所用配置差 0.6%)。
 - 本仓补测 backlog 已清零(EXP-K01 §7 于 2026-08-24 晚闭环)。
 - 可选技能票:gemm/fa2 v5 = mma PTX + ldmatrix + smem swizzle(EXP-K02 §7、EXP-K03 §8;不阻塞)。
 - 待非容器环境/NCU 计数器权限(ERR_NVGPUCTRPERM):「swizzle / smem 往返是剩余差距主因」类推断转实测。
