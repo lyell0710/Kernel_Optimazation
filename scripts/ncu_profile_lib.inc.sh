@@ -79,6 +79,17 @@ ncu_run_one() {
     return "$status"
   fi
   rm -f "$err"
+
+  # ncu 对「regex 没匹配到任何 kernel」是静默的:退出码 0,但报告里一个实例都没有。
+  # 这种空报告下游用不了,而且会掩盖 regex 写错(gemm 的 cuBLAS 臂就是待验证的猜测)。
+  # 但它**不该中止整轮采集**——机器在计费,不能因为一个臂没抓到就丢掉其余几十份。
+  local n
+  n=$(ncu -i "${out_prefix}.ncu-rep" --page details --csv 2>/dev/null | sed '1d' | wc -l)
+  if [ "${n:-0}" -eq 0 ]; then
+    echo "  !! 空报告(regex 未匹配到任何 kernel),已删除并跳过:$kernel"
+    rm -f "${out_prefix}.ncu-rep"
+    return 0
+  fi
   echo "  -> ${out_prefix}.ncu-rep"
   return 0
 }

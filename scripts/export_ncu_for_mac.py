@@ -144,8 +144,13 @@ def main() -> int:
     for f in reports:
         insts, err = read_report(f)
         rel = f.relative_to(ROOT)
-        if err or not insts:
-            fails.append(f"{rel}: {err or '报告为空(无 kernel 实例)'}")
+        if err:
+            fails.append(f"{rel}: {err}")
+            continue
+        if not insts:
+            # 空报告 = 采集时 regex 没匹配到 kernel。是配置问题,不是报告损坏,
+            # 所以只警告并排除,不阻断其余报告的导出。
+            warns.append(f"{rel}: 报告为空(无 kernel 实例) —— 采集时 -k regex 未匹配,已排除出包")
             continue
 
         names = {base_name(i["kern"]) for i in insts}
