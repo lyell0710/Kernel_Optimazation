@@ -10,7 +10,7 @@ RoPE 是 llama 系模型里最容易写错、又最不容易发现写错的一�
 
 ## 这个算子是什么
 
-把 head_dim 的前后两半 $(x_1， x_2)$ 看成 $D/2$ 个复数的实部与虚部，整体乘 $e^{i\theta}$：
+把 head_dim 的前后两半 $(x_1, x_2)$ 看成 $D/2$ 个复数的实部与虚部，整体乘 $e^{i\theta}$：
 
 $$\text{out}[i] = x_1[i]\cos\theta_i - x_2[i]\sin\theta_i,\quad \text{out}[i{+}D/2] = x_2[i]\cos\theta_i + x_1[i]\sin\theta_i$$
 
