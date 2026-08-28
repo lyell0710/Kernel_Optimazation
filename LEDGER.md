@@ -56,3 +56,13 @@
 5. 收尾跑 `bash /root/standards/check.sh` 六项自检，0 FAIL 才 commit。
 6. `figures/` 全部由 `scripts/plot_readme_figures.py` 生成，禁手改；对外图脚注不带日期（日期溯源走 raw 文件名与 manifest）。
 7. **对外禁词**（README/PORTFOLIO 逐个 grep 自查，一个不留）：任何日期与时间戳（2026-xx、08-2x、UTC 时间戳）、勘误、审计、红线、解锁、台账、停投、待用户、待 GPU 空闲、待建远端、backlog、sibling、Codex、HANDOFF、check.sh、CORE、STANDARDS、DO_NOT_SEND、铁律、终端级证据（对外改写为「单轮」）。records/ 与 docs/archive/ 是史料，不受此限。
+
+## NCU 报告代际
+
+- 2026-08-28 起,`{softmax,gemv,int8-quantize,cuda-reduce}/project-proof/profiling/ncu/`
+  下 33 份报告由 **RTX 4090 / CUDA 12.8 / ncu 2025.1.1** 采集,取代原 RTX 4070 Laptop
+  (36 SM / 2026-05-23 / ncu 2022.4.1) 的同名报告。
+- 4070 代报告未复制副本,权威归档在 git ref `13fdaa3`;
+  取回:`git show 13fdaa3:<路径> > <目标>`。
+- `cuda-reduce/profiling/ncu/` 下 5 份仍为 4070 代(新脚本不写该路径)。
+- 逐份出处以 `artifacts/ncu_for_mac/manifest.csv` 的 gpu/sm_count/ncu_ver/created 列为准。
