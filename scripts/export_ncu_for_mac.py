@@ -26,6 +26,7 @@
 import csv
 import io
 import json
+import math
 import re
 import shutil
 import subprocess
@@ -57,6 +58,12 @@ FIELDS = sorted(set(WANT.values()))
 
 ALL_OPS = ["activation", "cuda-reduce", "flash-attn", "fused-norm", "gemm",
            "gemv", "int8-quantize", "rope", "softmax", "w8a8"]
+
+
+def grid_volume(inst) -> int:
+    """把 "(65536, 1, 1)" 这种 grid 字符串换算成块数,用于挑代表实例。"""
+    nums = [int(x) for x in re.findall(r"\d+", inst.get("grid") or "")]
+    return math.prod(nums) if nums else 0
 
 
 def base_name(kern: str) -> str:
@@ -168,7 +175,14 @@ def main() -> int:
                          f"{sorted(grids)} —— 多级算法的各级,还是多 regime 混样?"
                          f"若为后者,用 NCU_SKIP/NCU_COUNT 钉窗口重采")
 
-        d = insts[0]
+        # 代表实例的选法:**取 grid 体积最大的那一次 launch**,不是第一次。
+        # 为什么不能用第一次:flash-attn 的 bench 是形状扫描(S 从 512 到 4096),
+        # 前面还有四个正确性 gate 形状,于是 ID 0 落在 S=512 的 gate 上——
+        # 而 EXP-K03 的协议形状是 S=4096。用第一次做摘要,等于拿一个正确性检查
+        # 的小形状去代表整条版本梯,数字全错但看起来完全正常。
+        # 取最大 grid 至少落在工作量最大的那次 launch 上,与各仓 bench 的协议点一致。
+        # (逐实例数据仍在报告里,GUI 中可任选;本列只决定清单摘要显示哪一个。)
+        d = max(insts, key=grid_volume)
         # 逐份记出处,不靠"整包同源"的假设:本包就跨了两批采集
         # (2026-05-03 用 ncu 2026.1.1、05-23 用 2022.4.1),cuda-reduce 两批都有。
         si = session_info(f)
@@ -277,12 +291,12 @@ def main() -> int:
           "- `*_baseline` 为朴素实现，SOL 与 Occupancy 极低属预期，不代表硬件上限。\n",
           "## 逐份摘要\n",
           "取报告内第一个 kernel 实例；`k` 为实例总数，`g` 为不同 grid 数。\n",
-          "| 算子 | 版本 | k | g | Duration | SM % | Memory % | DRAM % | Occ % | Regs |",
-          "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|"]
+          "| 算子 | 版本 | k | g | 代表 grid | Duration | SM % | Memory % | DRAM % | Occ % | Regs |",
+          "|---|---|---:|---:|---|---:|---:|---:|---:|---:|---:|"]
     for r in sorted(rows, key=lambda r: (r["cat"], r["ver"])):
         L.append(f"| `{r['cat']}` | {r['ver']} | {r['nk']} | {r['n_grids']} | "
-                 f"{r['duration']} {r['unit']} | {r['sm_pct']} | {r['mem_pct']} | "
-                 f"{r['dram_pct']} | {r['occ_pct']} | {r['regs']} |")
+                 f"`{r['grid']}` | {r['duration']} {r['unit']} | {r['sm_pct']} | "
+                 f"{r['mem_pct']} | {r['dram_pct']} | {r['occ_pct']} | {r['regs']} |")
     L.append("")
     (OUT / "MANIFEST.md").write_text("\n".join(L), encoding="utf-8")
 
