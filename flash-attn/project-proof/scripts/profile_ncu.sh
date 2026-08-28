@@ -43,3 +43,6 @@ cd "$SANDBOX"
 
 ncu_profile_all "$OUT_DIR" "fa2" PROFILE_TARGETS \
   env BENCH_ITERS="$BENCH_ITERS" BENCH_OUT=/dev/null "$BIN_PATH"
+
+ncu_export_csv "$OUT_DIR" "fa2" \
+  env BENCH_ITERS="$BENCH_ITERS" BENCH_OUT=/dev/null "$BIN_PATH"

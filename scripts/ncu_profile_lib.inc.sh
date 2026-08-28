@@ -121,3 +121,24 @@ ncu_profile_all() {
   echo "完成。报告位于 ${out_dir}/${prefix}_*_profile.ncu-rep"
   echo "下一步:python3 scripts/export_ncu_for_mac.py  (口径校验 + 导出)"
 }
+
+# ncu_export_csv <out_dir> <prefix> <cmd...>
+# 导出 NCU_CSV_METRICS(含分管线利用率)。section 给不出 Tensor/FMA/ALU 的分管线占用,
+# 只能走 --metrics;而"wmma 有没有真的用上 Tensor Core"恰恰要它。
+# 仅在 RUN_NCU_CSV=1 时执行(默认关:多一个 pass,且新机器上未必需要)。
+ncu_export_csv() {
+  [ "${RUN_NCU_CSV:-0}" = "1" ] || return 0
+  local out_dir="$1"; shift
+  local prefix="$1"; shift
+  local csv="${out_dir}/${prefix}_ncu.csv"
+  echo "== RUN_NCU_CSV=1: 导出扩展指标 -> $(basename "$csv")"
+  set +e
+  ncu -f --target-processes all --metrics "$NCU_CSV_METRICS" --csv --log-file "$csv" "$@" >/dev/null 2>&1
+  local rc=$?
+  set -e
+  if [ "$rc" -ne 0 ] || ! [ -s "$csv" ]; then
+    echo "  !! 扩展指标导出失败(rc=$rc),不影响已采的 .ncu-rep"
+    return 0
+  fi
+  echo "  -> $csv"
+}

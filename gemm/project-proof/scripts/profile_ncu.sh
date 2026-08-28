@@ -46,3 +46,6 @@ cd "$SANDBOX"
 
 ncu_profile_all "$OUT_DIR" "gemm" PROFILE_TARGETS \
   env BENCH_ITERS="$BENCH_ITERS" BENCH_OUT=/dev/null "$BIN_PATH"
+
+ncu_export_csv "$OUT_DIR" "gemm" \
+  env BENCH_ITERS="$BENCH_ITERS" BENCH_OUT=/dev/null "$BIN_PATH"

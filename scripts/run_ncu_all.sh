@@ -62,7 +62,7 @@ done
 if [ "$NCU_EXPORT" = "1" ]; then
   echo
   echo "========== 校验 + 导出 Mac 报告包 =========="
-  python "$ROOT_DIR/scripts/export_ncu_for_mac.py"
+  python3 "$ROOT_DIR/scripts/export_ncu_for_mac.py"
 fi
 
 # profiler 隔离硬 gate:采集不得改动权威数据(CORE 铁律3)。
