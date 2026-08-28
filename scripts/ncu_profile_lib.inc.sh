@@ -1,0 +1,112 @@
+# 各算子 project-proof/scripts/profile_ncu.sh 的共用采集逻辑。
+# shellcheck shell=bash
+#
+# 设计要点(与 softmax/gemv/int8-quantize/cuda-reduce 的旧脚本口径一致):
+#   1. section 组合来自 ncu_metrics.inc.sh,与 2026-05 那批 Laptop 报告完全相同,
+#      否则新旧报告在 GUI 里无法逐 metric 对照。
+#   2. kernel 选择用 `-k regex:` + `^` 锚定。本仓 kernel 不在匿名 namespace 里,
+#      demangled 名直接以函数名开头,所以 `^` 有效;不锚定会出事:
+#      w8a8 的 `v1_kernel` 是 `dequant_v1_kernel` / `gemv_v1_kernel` 的子串,
+#      不锚定会把三个不同算子的 kernel 混进同一份报告。
+#   3. launch 窗口(NCU_SKIP/NCU_COUNT)可覆盖。为什么需要它:
+#      python 家族的 bench.py 逐 regime(decode/l2/prefill/hbm)跑同一个 kernel,
+#      timeit 又是 warmup=10 + iters,于是一个 kernel 在一次进程里被 launch 几十次、
+#      横跨好几个访存区间。把它们收进同一份报告 = 把 L2 区间和 HBM 区间混为一谈,
+#      正是 EXP-K04 那条"结论会因区间翻转"的坑。默认先全采并由
+#      verify_ncu_reports.py 报出实际分布,再按分布钉窗口重采。
+
+set -euo pipefail
+
+ncu_lib_init() {
+  KO_ROOT="$(cd "$1" && pwd)"
+  # shellcheck source=/dev/null
+  source "$KO_ROOT/scripts/ncu_metrics.inc.sh"
+
+  if ! command -v ncu >/dev/null 2>&1; then
+    echo "ncu not found in PATH. 装 Nsight Compute 后重试。"
+    exit 1
+  fi
+
+  NCU_SECTION_ARGS=()
+  for s in "${NCU_PROFILE_SECTIONS[@]}"; do
+    NCU_SECTION_ARGS+=(--section "$s")
+  done
+
+  # 默认不限窗口:先全采,看清 launch 分布再钉。
+  NCU_SKIP="${NCU_SKIP:-}"
+  NCU_COUNT="${NCU_COUNT:-}"
+}
+
+# ncu_run_one <out_prefix> <kernel_regex> <cmd...>
+# 返回 0=成功,10=权限被拒(调用方应整体放弃并提示),其余=真失败
+ncu_run_one() {
+  local out_prefix="$1"; shift
+  local kernel="$1"; shift
+
+  local window=()
+  [ -n "$NCU_SKIP" ]  && window+=(-s "$NCU_SKIP")
+  [ -n "$NCU_COUNT" ] && window+=(-c "$NCU_COUNT")
+
+  local err status
+  err="$(mktemp)"
+  set +e
+  ncu -f \
+    --target-processes all \
+    -k "regex:$kernel" \
+    "${window[@]}" \
+    "${NCU_SECTION_ARGS[@]}" \
+    -o "$out_prefix" \
+    "$@" >/dev/null 2>"$err"
+  status=$?
+  set -e
+
+  if [ "$status" -ne 0 ]; then
+    if grep -q ERR_NVGPUCTRPERM "$err" 2>/dev/null; then
+      echo
+      echo "==================================================================="
+      echo " ERR_NVGPUCTRPERM:本机没有 GPU 性能计数器权限,采集无法进行。"
+      echo " 容器内无解,需二选一(见 artifacts/ncu_for_mac/MANIFEST.md):"
+      echo "   宿主: /etc/modprobe.d/nvidia-profiler.conf"
+      echo "         → options nvidia NVreg_RestrictProfilingToAdminUsers=0"
+      echo "   容器: docker run --cap-add=SYS_ADMIN"
+      echo "==================================================================="
+      rm -f "$err"
+      return 10
+    fi
+    echo "NCU 采集失败 kernel=${kernel} (exit ${status}):"
+    cat "$err"
+    rm -f "$err"
+    return "$status"
+  fi
+  rm -f "$err"
+  echo "  -> ${out_prefix}.ncu-rep"
+  return 0
+}
+
+# ncu_profile_all <out_dir> <prefix> <targets_nameref> <cmd...>
+# targets 数组元素格式: "<tag>:<kernel_regex_without_anchor>"
+ncu_profile_all() {
+  local out_dir="$1"; shift
+  local prefix="$1"; shift
+  local -n _targets="$1"; shift
+
+  mkdir -p "$out_dir"
+  local entry tag kernel rc
+  for entry in "${_targets[@]}"; do
+    tag="${entry%%:*}"
+    kernel="${entry#*:}"
+    echo "== [${prefix}] ${tag}  (kernel ^${kernel})"
+    set +e
+    ncu_run_one "${out_dir}/${prefix}_${tag}_profile" "^${kernel}" "$@"
+    rc=$?
+    set -e
+    if [ "$rc" -eq 10 ]; then
+      echo "采集中止。权限恢复后重跑本脚本即可。"
+      exit 0
+    elif [ "$rc" -ne 0 ]; then
+      exit "$rc"
+    fi
+  done
+  echo "完成。报告位于 ${out_dir}/${prefix}_*_profile.ncu-rep"
+  echo "下一步:python scripts/verify_ncu_reports.py  (校验 regime 是否混样)"
+}

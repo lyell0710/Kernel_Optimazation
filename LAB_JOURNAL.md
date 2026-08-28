@@ -74,3 +74,19 @@
 **踩坑**：①bench 里写了多余的 `acc.copy_(torch._int_mm(...))`，白搬 100 MB， 占整条链路近四分之一——分解计时之和对不上总时间就是这类多余搬运的信号； ②int8 GEMV 的 x_scale 第一版用主机 double 传参，调用方要 `.item()`， 那是设备到主机的隐式同步，decode 逐层放大成每 token 上百次；改传设备指针。 ③derive_stability.py 遇到 nan 列会抛 AttributeError，已加剔除。
 
 **下一步**：接引擎（已完成，见 llm-engine#EXP-D24）。
+
+## 2026-08-28 NCU 采集设施补齐(十算子全覆盖,待权限)
+
+**做了什么**：①核实本机 NCU 现状——实采烟测返回 `ERR_NVGPUCTRPERM`，`RmProfilingAdminOnly=1` 且容器 CapEff 无 `CAP_SYS_ADMIN`/`CAP_PERFMON`，容器内无解；②核实现存 38 份 `.ncu-rep` 的出处——全部来自笔记本 `ubuntu22`，GPU 是 **RTX 4070 Laptop GPU（36 SM / 8 GB）而非 4090**（桌面 4090 为 128 SM / 24 GB，差 3.6 倍 SM；此前口头误称 4090，已按报告 Session 页更正，ENV.md 与 EXP-K01 标题原本记载正确）；且跨两批采集：2026-05-03 用 NCU 2026.1.1.0（6 份）、05-23 用 2022.4.1.0（32 份），`cuda-reduce` 两批都有。只覆盖 `cuda-reduce`/`gemv`/`int8-quantize`/`softmax` 四个算子；③为零覆盖的六个算子（`gemm`/`flash-attn`/`fused-norm`/`rope`/`activation`/`w8a8`）补齐 `project-proof/scripts/profile_ncu.sh`，共用逻辑抽到 `scripts/ncu_profile_lib.inc.sh`；④`scripts/run_ncu_all.sh` 扩到十算子；⑤新增 `scripts/export_ncu_for_mac.py`（口径校验 + 分类导出 + MANIFEST + tar.gz）；⑥新增 `docs/ncu_reading_guide.md`（优化手法↔NCU 证据的映射，及权限恢复后待转实测的推断清单）。
+
+**为什么（决策依据）**：零覆盖的六个算子恰好都是迁入当前容器之后写的，权限缺失把它们的归因全压成了 roofline 推断——`docs/lectures/03_memory_bound_fusion.md` 等处共有 5 条本仓推断 + 3 条跨仓推断明确写着「想验证但无计数器权限」。采集脚本先写好，权限一到即可一条命令跑完，不必届时再返工。
+
+**关键决定三条**：①`-k regex:` 必须用 `^` 锚定——`w8a8` 的 `v1_kernel` 是 `dequant_v1_kernel`/`gemv_v1_kernel` 的子串，不锚定会把三个不同 kernel 混进同一份报告，跨版本对比直接失效；②`ncu_metrics.inc.sh` 追加 `ComputeWorkloadAnalysis`——原八件是为访存型算子选的，没有算力侧分解，而 `gemm` v1→v2 与 `fa2` v1→v2 的核心就是上没上 Tensor Core，缺这一节那一跳只能靠 SOL 的 SM% 间接猜。追加不破坏兼容，旧报告的原八件仍逐 metric 可比；③python 家族的 bench 逐 regime 跑同一 kernel 且 `timeit` 是 warmup=10+iters，一个 kernel 一次进程会 launch 几十次并横跨多个访存区间，默认全采后由 `export_ncu_for_mac.py` 报出 grid 分布，再用 `NCU_SKIP`/`NCU_COUNT` 钉窗口重采——不这么做就会把 L2 区间与 HBM 区间混为一谈（EXP-K04 的教训）。
+
+**校验器抓到的事**：`export_ncu_for_mac.py` 对现存 38 份报告跑出 FAIL 0 / WARN 8；8 条 WARN 全是 `cuda-reduce` 的多级归约树（grid `65536→256→1` 三级同一 kernel），属合法形态而非混样——脚本因此只报事实、不下断言，判断留给人。另核实 `softmax_cublas_profile` 内是 `softmax_cublas_kernel`（自写 kernel，非 cuBLAS），`gemv_cublas_profile` 内是 `gemv2T_kernel_val<...cublasGemvParams...>`（真 cuBLAS），已写入 MANIFEST 的口径陷阱一节。
+
+**产物路径**：`scripts/ncu_profile_lib.inc.sh`、`scripts/export_ncu_for_mac.py`、`scripts/run_ncu_all.sh`、`{gemm,flash-attn,fused-norm,rope,activation,w8a8}/project-proof/scripts/profile_ncu.sh`、`docs/ncu_reading_guide.md`、`artifacts/ncu_for_mac/`（38 份分类报告 + MANIFEST.md + manifest.csv + 2.1 MB tar.gz）。
+
+**实例形态（决定申请话术）**：`/dev/nvidia4`、`/dev/nvidia5` 表明本容器拿到的是宿主第 5、6 号卡，宿主至少 6 卡且为多租户共享（hostname `cpod-*`，k8s pod）。因此「改宿主 `NVreg_RestrictProfilingToAdminUsers=0`」需重载驱动模块、打断同宿主其他租户，且一开即对全部租户生效；「`--cap-add=SYS_ADMIN`」在共享节点上是提权面。**两者都不应作为申请内容**，应改问「有无支持性能计数器的机型（独占整机/裸金属）」。新增 `scripts/probe_ncu_permission.sh`，换机器先跑它判定能否采集（本机实跑退出码 2）。
+
+**下一步**：向 compshare 询问支持 profiling 的机型；机理类问题（Tensor pipe 是否点亮、long scoreboard stall 是否下降、sector/request 是否下降、融合后中间结果是否出片）不依赖 SM 数与 L2 容量，**可在 4070 Laptop 上先行验证**；占用率、波量化、L2 区间相关结论必须等 4090。获权后 `bash scripts/run_ncu_all.sh` 一次跑完十算子，按 WARN 的 grid 分布钉窗口重采，再逐条转实测 `docs/ncu_reading_guide.md` §4 的 5+3 条推断。
