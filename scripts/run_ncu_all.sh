@@ -65,5 +65,17 @@ if [ "$NCU_EXPORT" = "1" ]; then
   python "$ROOT_DIR/scripts/export_ncu_for_mac.py"
 fi
 
+# profiler 隔离硬 gate:采集不得改动权威数据(CORE 铁律3)。
+# 静默污染比报错危险——覆盖后文件看起来完全正常,只有数字悄悄换成了 profiler 口径。
+dirty="$(cd "$ROOT_DIR" && git status --porcelain -- '*/project-proof/data/' 2>/dev/null)"
+if [ -n "$dirty" ]; then
+  echo
+  echo "!! profiler 隔离被破坏,以下权威数据被改动:"
+  printf '%s\n' "$dirty" | sed 's/^/    /'
+  echo "   恢复: git checkout -- <上列文件>"
+  echo "   这些文件在恢复前不可用作时延权威。"
+  exit 1
+fi
+
 echo
-echo "All NCU profiling jobs completed."
+echo "All NCU profiling jobs completed.  (project-proof/data/ 未被触碰)"

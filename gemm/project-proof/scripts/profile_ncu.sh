@@ -36,5 +36,13 @@ PROFILE_TARGETS=(
   "cublas:(cutlass|ampere_|turing_|sm\\d+_).*gemm"
 )
 
+# profiler 隔离(CORE):本算子没有 <OP>_PROFILE_ONLY 早退分支,bench 跑完必写 CSV。
+# 两道保险:① BENCH_OUT 指到 /dev/null(本算子读这个变量);
+# ② 在一次性沙箱 cwd 里跑——CSV 路径是相对 cwd 的,即便哪天不再读 BENCH_OUT 也写不进仓。
+# 少了这两道,profiler 口径的时延会静默覆盖 project-proof/data/ 的权威数据。
+SANDBOX="$(mktemp -d)"
+trap 'rm -rf "$SANDBOX"' EXIT
+cd "$SANDBOX"
+
 ncu_profile_all "$OUT_DIR" "gemm" PROFILE_TARGETS \
-  env BENCH_ITERS="$BENCH_ITERS" "$BIN_PATH"
+  env BENCH_ITERS="$BENCH_ITERS" BENCH_OUT=/dev/null "$BIN_PATH"
