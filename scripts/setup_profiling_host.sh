@@ -72,7 +72,14 @@ for d in $CPP_OPS; do
      && cmake --build "$d/build" -j"$(nproc)" >"$d/build.log" 2>&1; then
     echo "OK"; built=$((built+1))
   else
-    echo "失败(见 $d/build.log 末尾)"; tail -5 "$d/build.log" | sed 's/^/      /'
+    # 配置阶段失败写 build_cfg.log、编译阶段失败写 build.log。
+    # 只 tail 后者会在配置失败时报 "No such file",把真正的错误藏起来。
+    echo "失败:"
+    for lg in "$d/build_cfg.log" "$d/build.log"; do
+      [ -s "$lg" ] || continue
+      echo "      --- $(basename "$lg") 末尾 ---"
+      tail -8 "$lg" | sed 's/^/      /'
+    done
     failed="$failed $d"
   fi
 done

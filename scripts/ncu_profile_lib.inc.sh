@@ -119,5 +119,5 @@ ncu_profile_all() {
     fi
   done
   echo "完成。报告位于 ${out_dir}/${prefix}_*_profile.ncu-rep"
-  echo "下一步:python scripts/verify_ncu_reports.py  (校验 regime 是否混样)"
+  echo "下一步:python3 scripts/export_ncu_for_mac.py  (口径校验 + 导出)"
 }
