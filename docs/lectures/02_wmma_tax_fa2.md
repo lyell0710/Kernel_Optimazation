@@ -80,7 +80,7 @@
 
 ## 2 直觉与第一性原理
 
-**没有 FlashAttention 的世界**。注意力的定义是 $O = \mathrm{softmax}(QK^\top/\sqrt{D})\，V$。照定义实现要先把 $S = QK^\top$ 整个物化出来：$S$ 是 $S_{\text{len}} \times S_{\text{len}}$ 的矩阵，$S_{\text{len}}=4096$、fp16 时单个 head 就是 32MB，32 个 head 是 1GB，而且这 1GB 要写一遍（GEMM 1 的输出）、读一遍（softmax 的输入）、写一遍（softmax 的输出）、再读一遍（GEMM 2 的输入）。计算量只有 $O(S_{\text{len}}^2 D)$，访存量却是 $O(S_{\text{len}}^2)$ 且系数是 4——算术强度被 $D$ 以下的常数钉死，注意力于是变成一个「明明该 compute-bound 却被中间结果拖成 memory-bound」的算子。
+**没有 FlashAttention 的世界**。注意力的定义是 $O = \mathrm{softmax}(QK^\top/\sqrt{D})\,V$。照定义实现要先把 $S = QK^\top$ 整个物化出来：$S$ 是 $S_{\text{len}} \times S_{\text{len}}$ 的矩阵，$S_{\text{len}}=4096$、fp16 时单个 head 就是 32MB，32 个 head 是 1GB，而且这 1GB 要写一遍（GEMM 1 的输出）、读一遍（softmax 的输入）、写一遍（softmax 的输出）、再读一遍（GEMM 2 的输入）。计算量只有 $O(S_{\text{len}}^2 D)$，访存量却是 $O(S_{\text{len}}^2)$ 且系数是 4——算术强度被 $D$ 以下的常数钉死，注意力于是变成一个「明明该 compute-bound 却被中间结果拖成 memory-bound」的算子。
 
 **FA 的想法**：$S$ 不必物化。把 K/V 按列切成 tile，一次只算 $Q$ 的一条行带对一个 K tile 的 $S$ 分块（$64\times64$），当场做完 softmax 的增量更新，当场乘进 $V$，然后丢掉。整个 $S$ 从来不出 shared memory，HBM 上只有 Q、K、V、O 各走一遍。这就是「融合免搬运」：收益不来自任何一条指令变快，只来自中间结果不落地。
 
@@ -92,7 +92,7 @@
 
 ### 2.1 论文把这件事写成了什么:IO 复杂度
 
-上面那段直觉在 FlashAttention 原论文里有一个精确版本。论文的核心定理（Dao et al.， "FlashAttention： Fast and Memory-Efficient Exact Attention with IO-Awareness"， arXiv：2205.14135，Theorem 2）是：
+上面那段直觉在 FlashAttention 原论文里有一个精确版本。论文的核心定理（Dao et al.， "FlashAttention： Fast and Memory-Efficient Exact Attention with IO-Awareness"， arXiv:2205.14135，Theorem 2）是：
 
 > "Standard attention requires $\Theta(Nd+N^2)$ HBM accesses, while FlashAttention requires $\Theta(N^2d^2M^{-1})$ HBM accesses."
 
@@ -104,7 +104,7 @@
 
 **这两条对本篇的意义**：(a) FA 的收益是「不物化中间结果」，不是任何一条指令变快——所以任何把中间结果重新落地的实现（比如本梯被 wmma 逼着把 $S$、$P$、$O$ 落 shared memory）都在往回走，只是往回走到了片上而不是片外；(b) 论文的分析停在 HBM 层，**它没有分析 shared memory 层的往返代价**，而这恰恰是本篇要量化的东西（§3.4）。所以本篇的账不是在验证论文，是在补论文没算的那一层。
 
-算法的另外两个源头也值得点名：分块 softmax 的在线形式来自 Milakov & Gimelshein 的 "Online normalizer calculation for softmax"(arXiv：1805.02867)，该文的目标是把 softmax 的三遍访存降到两遍；而「注意力可以只用常数显存」的构造来自 Rabe & Staats， "Self-attention Does Not Need $O(n^2)$ Memory"(arXiv：2112.05682)。**FlashAttention 的贡献是把这两件事与 GPU 存储层级绑在一起做 IO 感知的分块**，不是发明在线 softmax。
+算法的另外两个源头也值得点名：分块 softmax 的在线形式来自 Milakov & Gimelshein 的 "Online normalizer calculation for softmax"(arXiv:1805.02867)，该文的目标是把 softmax 的三遍访存降到两遍；而「注意力可以只用常数显存」的构造来自 Rabe & Staats， "Self-attention Does Not Need $O(n^2)$ Memory"(arXiv:2112.05682)。**FlashAttention 的贡献是把这两件事与 GPU 存储层级绑在一起做 IO 感知的分块**，不是发明在线 softmax。
 
 ### 2.2 三条贯穿全篇的公理
 
@@ -116,13 +116,13 @@
 
 ### 3.1 在线 softmax 三件套:α 修正是恒等式,不是近似
 
-设一行的打分序列为 $s_1，\dots，s_N$（已乘 $1/\sqrt D$）。目标 $o=\sum_j \frac{e^{s_j}}{\sum_i e^{s_i}} v_j$。
+设一行的打分序列为 $s_1,\dots,s_N$（已乘 $1/\sqrt D$）。目标 $o=\sum_j \frac{e^{s_j}}{\sum_i e^{s_i}} v_j$。
 
 定义处理完前 $t$ 个键后的三个量（这就是「三件套」）：
 
 $$m_t=\max_{j\le t}s_j,\qquad \ell_t=\sum_{j\le t}e^{s_j-m_t},\qquad a_t=\sum_{j\le t}e^{s_j-m_t}v_j$$
 
-归纳推进一步。来了新键 $s$，令 $m_{t+1}=\max(m_t，s)$，$\alpha=e^{m_t-m_{t+1}}$：
+归纳推进一步。来了新键 $s$，令 $m_{t+1}=\max(m_t,s)$，$\alpha=e^{m_t-m_{t+1}}$：
 
 1. 对任意 $j\le t$：$e^{s_j-m_{t+1}}=e^{(s_j-m_t)+(m_t-m_{t+1})}=e^{s_j-m_t}\cdot\alpha$。——**这一步是指数的可加性，精确成立，不是近似**。所以「把此前的部分和整体乘 α」等价于「把它们全部换算到新基准重算一遍」，一个乘法顶一遍重算。
 2. 于是 $\ell_{t+1}=\ell_t\alpha+e^{s-m_{t+1}}$，$a_{t+1}=a_t\alpha+e^{s-m_{t+1}}v$。——两个累加器用同一个 α，所以只需要维护一个标量 α，不需要按元素记账。
@@ -142,7 +142,7 @@ $$m_t=\max_{j\le t}s_j,\qquad \ell_t=\sum_{j\le t}e^{s_j-m_t},\qquad a_t=\sum_{j
 |---|---|---|
 | $e^{s_j-m_{t+1}}=e^{s_j-m_t}\cdot\alpha$ | **数学恒等** | 指数的可加性，在实数上精确；在 fp32 上引入一次乘法的舍入，相对误差 ≤ $2^{-24}$ |
 | $\ell_{t+1}=\ell_t\alpha+e^{s-m_{t+1}}$ | **数学恒等** | 同上；累加顺序改变，但和的值在实数上不变 |
-| 减 max | **数值选择**（数学上不变） | softmax 对平移不变，是恒等；但它把 $e^x$ 的参数从无界压到 $(-\infty，0]$，消掉上溢面 |
+| 减 max | **数值选择**（数学上不变） | softmax 对平移不变，是恒等；但它把 $e^x$ 的参数从无界压到 $(-\infty,0]$，消掉上溢面 |
 | 分母只在最后除一次 | **数值选择**（数学上不变） | 少 $N-1$ 次除法与 $N-1$ 次舍入 |
 | $S$ 存 fp16(v4) | **有损** | 相对误差 ≤ $2^{-11}$，实测未推高最终误差（§5.3） |
 
@@ -156,7 +156,7 @@ $m$ 的初值是哨兵 $-10^{30}$（fa2_v2.cu：71 的 `m_s[tid] = -1e30f`）。
 
 #### 3.1.3 论文的第三个改动,以及本仓做到了哪几个
 
-FlashAttention-2(arXiv：2307.08691，§3.1)对在线 softmax 提了两处算法级修改，理由是 GPU 上非矩阵乘法运算比矩阵乘法贵得多——论文的原话是 "each non-matmul FLOP is 16× more expensive than a matmul FLOP"，并举 A100 为例："312 TFLOPs/s of FP16/BF16 matmul， but only 19.5 TFLOPs/s of non-matmul FP32"。两处修改是：
+FlashAttention-2(arXiv:2307.08691，§3.1)对在线 softmax 提了两处算法级修改，理由是 GPU 上非矩阵乘法运算比矩阵乘法贵得多——论文的原话是 "each non-matmul FLOP is 16× more expensive than a matmul FLOP"，并举 A100 为例："312 TFLOPs/s of FP16/BF16 matmul， but only 19.5 TFLOPs/s of non-matmul FP32"。两处修改是：
 
 1. **不在每一步除以 $\ell$**，而是维护一个未归一化的 $\tilde O$，只在最后做一次 $\mathrm{diag}(\ell)^{-1}$。
 2. **只存 logsumexp $L = m + \log \ell$**，而不是分别存 $m$ 与 $\ell$。
@@ -207,7 +207,7 @@ FlashAttention-2(arXiv：2307.08691，§3.1)对在线 softmax 提了两处算法
 | | GEMM 的 epilogue | FA2 的每 tile 后处理 |
 |---|---|---|
 | 要做什么 | $C \leftarrow \alpha(A B) + \beta C$，逐元素 | 行级 max、行级求和、行级 ×α |
-| 需要位置信息吗 | 不需要（$\alpha，\beta$ 全局标量） | **需要行号** |
+| 需要位置信息吗 | 不需要（$\alpha,\beta$ 全局标量） | **需要行号** |
 | 能否在 fragment 上做 | 能（文档例外条款） | 不能 |
 | 后果 | accumulator 全程驻寄存器 | $S$、$P$、$O$ 三次往返 shared memory |
 
@@ -294,7 +294,7 @@ v2/v3/v4 每个 tile 都走同一条五段链（fa2_v2.cu：10-13）：
 
 1. **loop-top(WAR)**：上一轮 ⑤ 还在读 Vs 与 Psm，本轮 ① 就要覆盖 Ks/Vs。写方是全 block 的装载分片，读方是上一轮的 wmma warp，两者线程集不重合。删掉它：上一轮慢 warp 读到本轮的新 V，结果错而不崩。v4 这一处更险——SP 合一之后，本轮 ② 写 S 会覆盖上一轮 ⑤ 正在读的 P，于是这一个 barrier 同时守两块（fa2_v4.cu：101-102 注为 WAR×2）。
 2. **①→②(RAW)**：装载按线性 tid 分片（`for t = tid; t < BN*FA_D/8; t += blockDim.x`），消费按 warp 分块——你搬的那一段多半不是你要读的那一段，必须靠 barrier 让别人的写对你可见。
-3. **②→③(RAW)**：第 $r$ 行的 $S$ 由 warp $r/16$ 写（v2）或 warp $(r/16)\times 2 + \text{半区}$ 写（v3/v4），由线程 $tid=r$(v2)或 $tid=2r，2r{+}1$(v3/v4)读——跨 warp 的写读关系。删掉它：softmax 读到半块 $S$，max 与分母全错。
+3. **②→③(RAW)**：第 $r$ 行的 $S$ 由 warp $r/16$ 写（v2）或 warp $(r/16)\times 2 + \text{半区}$ 写（v3/v4），由线程 $tid=r$(v2)或 $tid=2r,2r{+}1$(v3/v4)读——跨 warp 的写读关系。删掉它：softmax 读到半块 $S$，max 与分母全错。
 4. **③→④(RAW)**：α 由 softmax 线程写进 `a_s`，由重缩放段的**别的**线程读（重缩放按线性 tid 分片，`a_s[i / FA_D]` 取行号）。同一个 barrier 也保证 $P$ 对 ⑤ 可见。
 5. **④→⑤(RAW)**：重缩放按线性 tid 分片写 Osm，⑤ 按 warp 行条带 `load_matrix_sync` 读旧 O——又是线程集不重合。**顺序不能反**：$O_{\text{new}}=\alpha O_{\text{old}}+PV$，若 ⑤ 先加再缩放，历史项会被多乘一次 α。
 
@@ -317,7 +317,7 @@ v2/v3/v4 每个 tile 都走同一条五段链（fa2_v2.cu：10-13）：
 | ⑤ | 读旧 O + 写新 O | 65,536 |
 | | **合计** | **417,792 ≈ 408 KB** |
 
-同一个 tile 的有效计算是两个 $64\times64\times128$ 的矩阵乘 $=2{，}097{，}152$ FLOP，于是 **5.0 FLOP / smem 字节**。对照讲义 01 的 gemm v4：每个 K 块写 16,384 + 读 49,152 = 65,536 B 喂 1,048,576 FLOP，**16 FLOP / 字节**。差 3.2 倍。
+同一个 tile 的有效计算是两个 $64\times64\times128$ 的矩阵乘 $=2{,}097{,}152$ FLOP，于是 **5.0 FLOP / smem 字节**。对照讲义 01 的 gemm v4：每个 K 块写 16,384 + 读 49,152 = 65,536 B 喂 1,048,576 FLOP，**16 FLOP / 字节**。差 3.2 倍。
 
 再把账拆一次：上表中**只因为 fragment 不透明才存在**的部分是 store S(16,384)+ 读 S(32,768)+ 写 P(8,192)+ 读 P(65,536)+ O 的 ×α 读写（65,536）+ O 的累加读写（65,536）= 253,952 B，占 61%。mma 路线上这六项全部消失（$S$、$P$、$O$ 都留在寄存器），剩下的 163,840 B 对应 **12.8 FLOP/字节**——回到 GEMM 的同一档。这就是「架构税」在字节上的形状。再次强调这是账面推导，不是计数器实测。
 
@@ -338,7 +338,7 @@ v2 的 128 线程在 1 block/SM 的机器上明显吃不满。v3 的唯一变量
 
 #### 3.5.1 论文怎么划分 warp,本梯怎么划分,以及为什么不一样
 
-FlashAttention-2 用一整节讲 warp 之间怎么分活（arXiv：2307.08691，§3.3 "Work Partitioning Between Warps"），结论是从 split-K 换成 split-Q：
+FlashAttention-2 用一整节讲 warp 之间怎么分活（arXiv:2307.08691，§3.3 "Work Partitioning Between Warps"），结论是从 split-K 换成 split-Q：
 
 - **split-K（FlashAttention-1 的做法）**：把 $K$、$V$ 切给 4 个 warp，$Q$ 全 warp 共享。论文指出它的代价是 "all warps need to write their intermediate results out to shared memory， synchronize， then add up"——每个 warp 只算出部分的 $QK^\top$，必须经 shared memory 规约。
 - **split-Q（FlashAttention-2 的做法）**：把 $Q$ 切给各 warp，$K$、$V$ 全 warp 共享。每个 warp 独立算完自己那几行的 $QK^\top$ 与 $PV$，**不需要跨 warp 规约**。
@@ -371,12 +371,12 @@ commit 序列（每线程，`async_tile` 每次调用恰好 commit 一组，fa2_
 
 $$G_K(0),\ G_V(0),\ G_K(1),\ G_V(1),\ G_K(2),\ \dots$$
 
-**不变量 I**：轮 $t$ 走到第一个 `wait_prior(1)` 时，在途组恰为 $[G_K(t)，\ G_V(t)]$（老在前）。
+**不变量 I**：轮 $t$ 走到第一个 `wait_prior(1)` 时，在途组恰为 $[G_K(t),\ G_V(t)]$（老在前）。
 
 - **基例** $t=0$：序幕 commit 了 $G_K(0)$(fa2_v4.cu：98)，轮首 commit 了 $G_V(0)$，尚无 wait。成立。
 - **归纳**：设轮 $t$ 成立。
   1. 第一个 `wait_prior(1)` 留最新 1 组在途 ⇒ 等掉 $G_K(t)$，剩 $[G_V(t)]$。**等掉的恰是 ② 马上要读的 K tile**；$G_V(t)$ 继续在途，与 ②③④ 三段重叠。
-  2. ② 之后 commit $G_K(t+1)$ 进另一缓冲 ⇒ $[G_V(t)，\ G_K(t+1)]$。
+  2. ② 之后 commit $G_K(t+1)$ 进另一缓冲 ⇒ $[G_V(t),\ G_K(t+1)]$。
   3. ④ 之后的 `wait_prior(1)` 等掉 $G_V(t)$，剩 $[G_K(t+1)]$。**等掉的恰是 ⑤ 马上要读的 V tile**；$G_K(t+1)$ 继续在途，跨过 ⑤ 与下一轮开头。
   4. 轮 $t+1$ 首 commit $G_V(t+1)$ ⇒ $[G_K(t+1),\ G_V(t+1)]$，I 在 $t+1$ 成立。∎
 
@@ -596,7 +596,7 @@ $O$ 是 PV 的累加器，布局同样是 C 的那张表：每个 lane 知道自
 
 #### 3.10.3 论文的 IO 分析层级 vs 本篇的账
 
-- **论文说**：FlashAttention 的 HBM 访问是 $\Theta(N^2d^2M^{-1})$，并证明这是下界（arXiv：2205.14135，Theorem 2 与 Proposition 3）。
+- **论文说**：FlashAttention 的 HBM 访问是 $\Theta(N^2d^2M^{-1})$，并证明这是下界（arXiv:2205.14135，Theorem 2 与 Proposition 3）。
 - **本篇**：§3.4 的 408 KB/tile 全部是 **shared memory 层**的流量，HBM 层的流量本梯与官方实现同阶（Q、K、V、O 各走一遍）。
 - **差异来源**：**分析层级不同，不是结论冲突**。论文的定理在 HBM 层成立，本梯也满足；架构税发生在论文没有分析的那一层。**这是本篇最想让人记住的一个方法论点：一个模型的最优性只在它建模的那一层成立，换一层就要重新算账。**
 
@@ -660,7 +660,7 @@ constexpr int LDS = 68, LDP = 72;
 
 角色：整个 v2/v3 的资源契约，§3.3 那张表就是它的逐字段展开。
 
-**硬件语义（bank 的算术）**：shared memory 有 32 个 bank、每 bank 每周期 32 bit(CUDA C++ Best Practices Guide §10.2.3.1："Each bank has a bandwidth of 32 bits every clock cycle， and successive 32-bit words are assigned to successive banks")。所以对 float 数组，地址 $a$ 落在 bank $(a \bmod 32)$；行跨距 64 float 时，第 $r$ 行第 $c$ 列的 bank 号是 $(64r + c) \bmod 32 = c \bmod 32$—— **与 $r$ 无关**，同一列的所有行全撞同一个 bank。改成 68 之后是 $(68r + c) \bmod 32 = (4r + c) \bmod 32$，相邻行错开 4 个 bank，$r=0..7$ 覆盖 bank $c， c{+}4， \dots， c{+}28$ 共 8 个，$r=8$ 起绕回—— **同一列上 16 行只落在 8 个 bank 上，列向访问的冲突度从 16 路降到 2 路**（**本讲义折算**；`load/store_matrix_sync` 内部的实际访问模式不公开，这里算的是「同列 16 行」这一最坏情形，标注账面推断）。`Psm` 是 half，两个 half 共用一个 32-bit 字，行跨距 72 half = 36 字，$(36r + c/2) \bmod 32 = (4r + c/2) \bmod 32$，同样是每行错 4 个 bank。**两个魔法数的「打散」效果是同一个 4**，这不是巧合：4 float = 8 half = 16 B 正是 `ldm` 合法性允许的最小步长（§3.3.1）。
+**硬件语义（bank 的算术）**：shared memory 有 32 个 bank、每 bank 每周期 32 bit(CUDA C++ Best Practices Guide §10.2.3.1："Each bank has a bandwidth of 32 bits every clock cycle， and successive 32-bit words are assigned to successive banks")。所以对 float 数组，地址 $a$ 落在 bank $(a \bmod 32)$；行跨距 64 float 时，第 $r$ 行第 $c$ 列的 bank 号是 $(64r + c) \bmod 32 = c \bmod 32$—— **与 $r$ 无关**，同一列的所有行全撞同一个 bank。改成 68 之后是 $(68r + c) \bmod 32 = (4r + c) \bmod 32$，相邻行错开 4 个 bank，$r=0..7$ 覆盖 bank $c, c{+}4, \dots, c{+}28$ 共 8 个，$r=8$ 起绕回—— **同一列上 16 行只落在 8 个 bank 上，列向访问的冲突度从 16 路降到 2 路**（**本讲义折算**；`load/store_matrix_sync` 内部的实际访问模式不公开，这里算的是「同列 16 行」这一最坏情形，标注账面推断）。`Psm` 是 half，两个 half 共用一个 32-bit 字，行跨距 72 half = 36 字，$(36r + c/2) \bmod 32 = (4r + c/2) \bmod 32$，同样是每行错 4 个 bank。**两个魔法数的「打散」效果是同一个 4**，这不是巧合：4 float = 8 half = 16 B 正是 `ldm` 合法性允许的最小步长（§3.3.1）。
 
 关键行：六个 `OFF_*` 是前缀和，`SMEM_BYTES = 92928` 是总和——三者任何一处改动都必须同步改另外两处，否则相邻两区直接重叠（区与区之间没有任何运行时检查）；`LDS = 68` 与 `LDP = 72` 是 §3.3 推的两个约束（打散 bank + 保住 16B 对齐）的解。改错会怎样：把 LDS 改回 64，程序**完全正确**但 wmma 的列向 store 全撞同一 bank，慢下来而不报错——这是最难查的一类性能 bug；把某个 `OFF_*` 少算 768（漏掉 m/l/a 区），Ks 会覆盖在线统计上，softmax 的 max 与分母被 K 的比特图案污染，错得毫无规律。
 
@@ -901,7 +901,7 @@ wmma 没有「累加到内存」这种原语，所以只能 load 旧 $O$ → 逐
 
 **Q6：每 tile 5 次 `__syncthreads`，能删掉哪几个？** 中间 4 个删不掉：它们守的都是「写者线程集 ≠ 读者线程集」（装载按线性 tid 分片 / 消费按 warp 分块；$S$ 跨 warp 写读；α 与 $P$ 跨线程；$O$ 重缩放跨线程）。loop-top 那个 WAR barrier 理论上可以用 K/V 双缓冲消掉，但 smem 只剩 8KB 余量，K 一份双缓冲就要 16KB——链的长度是 smem 预算与 fragment 不透明的交点，不是懒（§3.4）。
 
-**Q7：v4 的两个 `wait_prior(1)` 分别在等谁？末轮为什么降为 0？** commit 序列严格交替 $G_K(0)，G_V(0)，G_K(1)，\dots$，不变量是「轮 $t$ 首个 wait 时在途恰为 $[G_K(t)，G_V(t)]$」。第一个 wait 留最新 1 组 ⇒ 等掉 $G_K(t)$（② 要读的 K）；第二个 wait 时在途是 $[G_V(t)，G_K(t{+}1)]$ ⇒ 等掉 $G_V(t)$（⑤ 要读的 V）。末轮不发 $G_K(t{+}1)$，在途只剩 $[G_V(t)]$，参数写 1 就会把它留在途，⑤ 读到没搬完的 V（§3.6 归纳证明）。
+**Q7：v4 的两个 `wait_prior(1)` 分别在等谁？末轮为什么降为 0？** commit 序列严格交替 $G_K(0),G_V(0),G_K(1),\dots$，不变量是「轮 $t$ 首个 wait 时在途恰为 $[G_K(t),G_V(t)]$」。第一个 wait 留最新 1 组 ⇒ 等掉 $G_K(t)$（② 要读的 K）；第二个 wait 时在途是 $[G_V(t),G_K(t{+}1)]$ ⇒ 等掉 $G_V(t)$（⑤ 要读的 V）。末轮不发 $G_K(t{+}1)$，在途只剩 $[G_V(t)]$，参数写 1 就会把它留在途，⑤ 读到没搬完的 V（§3.6 归纳证明）。
 
 **Q8：V 为什么不双缓冲？** 两个理由。软的：$V$ 只在 ⑤ 消费，而 $G_V(t)$ 已经有 ②③④ 三段重叠窗口，再开一份换不来新窗口。硬的：smem 已 89.75KB，再加 16KB 是 105.75KB，超过 Ada 每 block 99KB 上限，属性设置直接失败——是放不下，不是不划算。
 
@@ -931,7 +931,7 @@ wmma 没有「累加到内存」这种原语，所以只能 load 旧 $O$ → 逐
 
 - **官方 FlashAttention-2 / CUTLASS**：算法与本梯**同构**——在线 softmax 三件套、Q 常驻、O 增量重缩放，一样不多一样不少。差距全部在 warp/instruction 层：mma PTX 拿到公开布局 ⇒ $S$/$P$/$O$ 全程寄存器驻留、softmax 用 warp shuffle 在寄存器里做（§3.8.2 到 §3.8.4 给了这三条各自的布局依据）；ldmatrix + smem swizzle 消 bank conflict；cp.async 多级流水（本梯只有 2 级双缓冲）。**不是算法差距，是布局控制差距**——这是本篇最想留下的一句话。
 - **Triton**：`tl.dot` 自动编译到 mma.sync + ldmatrix，程序员只写 tile 逻辑。自家 Triton 版 S=4096 为 1.119 ms ≈ 123 TFLOPS（跨 harness，推断级），本梯 v4 为其 28%；PyTorch sdpa-flash 约 140 TFLOPS（同样跨 harness，推断级），本梯为其 25%。**这条对照的价值是把「布局控制」标了价**：不需要自己写 PTX，只需要换一个把布局当一等公民的编程模型。
-- **Hopper 与 FA3**：换 TMA + warp specialization（生产者 warp 搬运、消费者 warp 计算）与 FP8。论文的三条技术写在摘要里（Shah et al.， "FlashAttention-3： Fast and Accurate Attention with Asynchrony and Low-precision"， arXiv：2407.08608）："exploiting asynchrony of the Tensor Cores and TMA to (1) overlap overall computation and data movement via warp-specialization and (2) interleave block-wise matmul and softmax operations， and (3) block quantization and incoherent processing that leverages hardware support for FP8 low-precision." 值得注意的是 FA3 对「相位链串行」给出的解法**不是缩短链**，而是第（2） 条的交错调度——让两组 warp 处在不同相位，一组做 softmax 时另一组做 GEMM，Tensor Core 就不再空转。本篇 §3.7 第 3 条（③ 段 Tensor Core 空转）在 Hopper 上正是被这样解决的，但它依赖 mbarrier/TMA，不是 Ada 上能直接搬的方案。**两条路线的对照很有教学意义**：本篇 §3.8 的 v5 路线是「把链缩短」，FA3 是「让链的两段重叠」；前者需要布局公开，后者需要异步原语与足够的 warp 预算。
+- **Hopper 与 FA3**：换 TMA + warp specialization（生产者 warp 搬运、消费者 warp 计算）与 FP8。论文的三条技术写在摘要里（Shah et al.， "FlashAttention-3： Fast and Accurate Attention with Asynchrony and Low-precision"， arXiv:2407.08608）："exploiting asynchrony of the Tensor Cores and TMA to (1) overlap overall computation and data movement via warp-specialization and (2) interleave block-wise matmul and softmax operations， and (3) block quantization and incoherent processing that leverages hardware support for FP8 low-precision." 值得注意的是 FA3 对「相位链串行」给出的解法**不是缩短链**，而是第（2） 条的交错调度——让两组 warp 处在不同相位，一组做 softmax 时另一组做 GEMM，Tensor Core 就不再空转。本篇 §3.7 第 3 条（③ 段 Tensor Core 空转）在 Hopper 上正是被这样解决的，但它依赖 mbarrier/TMA，不是 Ada 上能直接搬的方案。**两条路线的对照很有教学意义**：本篇 §3.8 的 v5 路线是「把链缩短」，FA3 是「让链的两段重叠」；前者需要布局公开，后者需要异步原语与足够的 warp 预算。
 - **decode 形状**：$S_q{=}1$ 时 FA2 的 tile 结构完全不适用（一行 query 撑不起 $64\times64$ 的 tile），生产实现走 flash-decoding——沿 KV 维切分成多个分片并行，再做一次跨分片的二次规约（合并各分片的 $m$、$\ell$、$O$，合并规则就是 §3.1 的那套三件套）。本仓未测，不外推。
 
 ### 8.2 一个跨算子的对照:同一个「税」在别处长什么样
@@ -1029,6 +1029,6 @@ reduce 的教科书规模是 $N = 2^{24}$ = 1677 万个 float = 67.1 MB。**在 
 
 **论文**
 
-13. Dao et al.， "FlashAttention： Fast and Memory-Efficient Exact Attention with IO-Awareness"， arXiv：2205.14135(Theorem 2、Proposition 3)——IO 复杂度与它的下界。读它能解决：「FA 的收益在数学上被界定成什么，以及这个界定停在哪一层」(§2.1、§3.10.3)。
-14. Dao， "FlashAttention-2： Faster Attention with Better Parallelism and Work Partitioning"， arXiv：2307.08691（§3.1 算法修改、§3.3 warp 划分）——split-K 与 split-Q 的取舍。读它能解决：「本梯 v3 的『行带 × 列半区』混合划分为什么没有被论文说中的代价咬到」(§3.5.1)。
-15. Milakov & Gimelshein， "Online normalizer calculation for softmax"， arXiv：1805.02867——在线 softmax 的原始出处。读它能解决：「三件套不是 FlashAttention 发明的，它原本是为了把 softmax 的三遍访存降到两遍」(§2.1)。
+13. Dao et al.， "FlashAttention： Fast and Memory-Efficient Exact Attention with IO-Awareness"， arXiv:2205.14135(Theorem 2、Proposition 3)——IO 复杂度与它的下界。读它能解决：「FA 的收益在数学上被界定成什么，以及这个界定停在哪一层」(§2.1、§3.10.3)。
+14. Dao， "FlashAttention-2： Faster Attention with Better Parallelism and Work Partitioning"， arXiv:2307.08691（§3.1 算法修改、§3.3 warp 划分）——split-K 与 split-Q 的取舍。读它能解决：「本梯 v3 的『行带 × 列半区』混合划分为什么没有被论文说中的代价咬到」(§3.5.1)。
+15. Milakov & Gimelshein， "Online normalizer calculation for softmax"， arXiv:1805.02867——在线 softmax 的原始出处。读它能解决：「三件套不是 FlashAttention 发明的，它原本是为了把 softmax 的三遍访存降到两遍」(§2.1)。

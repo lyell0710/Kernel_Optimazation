@@ -84,11 +84,11 @@ $$\underbrace{\text{读 } x}_{1} + \underbrace{\text{读 residual}}_{1} + \under
 
 未融合的实现要搬多少？一个 add kernel（读 x、读 res、写 res = 3 次），再一个 rmsnorm kernel（读 res 求平方和、读 res 归一化、写 out = 3 次），合计 6 次。所以"融合"这一级的理论上限是 $6/5$ 或 $6/4$，取决于第二遍重读算不算——这个问号后面会变成本篇最有意思的一段。
 
-**rope**。把 head_dim 的前后两半 $(x_1， x_2)$ 看成 $D/2$ 个复数的实部与虚部， 整体乘 $e^{i\theta}$：
+**rope**。把 head_dim 的前后两半 $(x_1, x_2)$ 看成 $D/2$ 个复数的实部与虚部， 整体乘 $e^{i\theta}$：
 
 $$\begin{aligned} \text{out}[i] &= x_1[i]\cos\theta_i - x_2[i]\sin\theta_i \\ \text{out}[i + D/2] &= x_2[i]\cos\theta_i + x_1[i]\sin\theta_i \end{aligned}$$
 
-注意两行右边用的是**同一个** $\theta_i$。这不是巧合：cos/sin 表在生成时把 $D/2$ 个频率重复了两遍（`cat((freqs, freqs))`），就是为了让前后两半共用一组频率。这个结构决定了字节账能砍半——一个线程同时处理一对 $(i，\ i+D/2)$， 就只需要读一次 cos、一次 sin。
+注意两行右边用的是**同一个** $\theta_i$。这不是巧合：cos/sin 表在生成时把 $D/2$ 个频率重复了两遍（`cat((freqs, freqs))`），就是为了让前后两半共用一组频率。这个结构决定了字节账能砍半——一个线程同时处理一对 $(i,\ i+D/2)$， 就只需要读一次 cos、一次 sin。
 
 朴素实现（一线程一元素）：读自己 + 读配对元素 + 读 cos + 读 sin + 写回 = 5 次。配对实现：每对读 2 写 2，加 cos/sin 各 1，除以 2 个元素 = 3 次。上限 $5/3$。
 
@@ -319,7 +319,7 @@ $\theta = (\text{pos\_offset} + \text{token}) \times \text{inv\_freq}[i]$，然�
     }
 ```
 
-`silu(g)` 的结果连一个具名变量都不需要，直接进乘法。v0 里它是一整份与 gate 等大的显存张量（$T=8192，\ I=12288$ 时是 200 MB 写 + 200 MB 读）。
+`silu(g)` 的结果连一个具名变量都不需要，直接进乘法。v0 里它是一整份与 gate 等大的显存张量（$T=8192,\ I=12288$ 时是 200 MB 写 + 200 MB 读）。
 
 `silu` 内部的 sigmoid 在 fp32 里算，与 PyTorch 对 bf16 的 opmath 一致。直接在 bf16 上算 `exp`，$|x|$ 稍大就会明显失真——bf16 只有 8 位尾数，exp 的输入误差会被指数放大成输出的相对误差。
 
