@@ -63,19 +63,18 @@ S=4096 协议点（3 轮 mean±std）：
 ## 6. 分析与结论
 
 - **H2 前半成立**：v1→v2 ×4.5；v3 +33% 说明 v2 的 4 warp/128 线程吃不满 1 block/SM 的机器；**v4 仅 +6.6% 是本实验最有信息量的数字**——K/V 预取能给的都给了，剩下的时间不在全局访存，而在每 tile 5 次 __syncthreads 串起来的「QK^T→S 落 smem→标量 softmax→O 重缩放→PV→O 回写」相位链。
-- **H2 后半成立（量化了架构税）**：v4 34.8 TF = Triton 版（EXP-T01， S=4096 1.119ms ≈ 123 TF，**跨 harness，推断级**） 的 **28%**，= sdpa-flash (≈140 TF) 的 25%。差距解释（推断， NCU 不可用未剖析确认）：Triton 编译到 mma PTX，fragment 布局已知 → softmax/α 直接在寄存器上做、 O 常驻寄存器， 全程无 smem 往返、无相位 sync；wmma 隐藏布局逼出的 smem 中转把 FA2 的「融合免搬运」优势吃掉大半。**结论一句话： GEMM 用 wmma 够到 cuBLAS 86% (EXP-K02《CUDA Tensor Core GEMM 版本梯》)，FA2 用 wmma 只够到 28%——越是靠融合吃饭的算子，越需要 mma 级寄存器控制，这就是 FA2 官方实现用 CUTLASS/mma 不用 wmma 的原因。**
+- **H2 后半成立（量化了架构税）**：v4 34.8 TF = Triton 版（triton-kernels#EXP-T01， S=4096 1.119ms ≈ 123 TF，**跨 harness，推断级**） 的 **28%**，= sdpa-flash (≈140 TF) 的 25%。差距解释（推断， NCU 不可用未剖析确认）：Triton 编译到 mma PTX，fragment 布局已知 → softmax/α 直接在寄存器上做、 O 常驻寄存器， 全程无 smem 往返、无相位 sync；wmma 隐藏布局逼出的 smem 中转把 FA2 的「融合免搬运」优势吃掉大半。**结论一句话： GEMM 用 wmma 够到 cuBLAS 86%（EXP-K02《CUDA Tensor Core GEMM 版本梯》），FA2 用 wmma 只够到 28%——越是靠融合吃饭的算子，越需要 mma 级寄存器控制，这就是 FA2 官方实现用 CUTLASS/mma 不用 wmma 的原因。**
 - v0→v1 仅 +11%：K/V 广播读 L2 早已扛住（单 kv-head K = S·D·2B = 1MB ≪ 72MB L2），与 gemm v0→v1(compute-bound，+25%) 机理不同但同样「白忙」—— 优化前先想清楚当前瓶颈层。
 
 ## 7. 异常、偏差与开放问题
 
 - v2+ 只支持 D=128、 S%64==0（bench 全形状满足）；通用性由 v0/v1 兜底。非整除 S 的 v2 化在 Triton 版已解（mask），CUDA 版列 backlog 不重复做。
-- 与 Triton/sdpa 的对照为跨 harness（EXP-T01 wall-clock vs 本仓 CUDA event， 均为 100 iters 稳态， ms 级 kernel 差异 <1%），记录为推断级。
+- 与 Triton/sdpa 的对照为跨 harness（triton-kernels#EXP-T01 wall-clock vs 本仓 CUDA event， 均为 100 iters 稳态， ms 级 kernel 差异 <1%），记录为推断级。
 - 开放： v5 = mma PTX + ldmatrix（拿到确定布局， softmax 上寄存器）——与 EXP-K02 的 gemm v5 是同一张技能票，二者共用一次学习成本。
 
 - **补记（2026-08-24 审计收尾）**：首次单轮验证跑落下的固定名 `project-proof/data/benchmark_results.csv`（sha=unknown，违 CORE bench 铁则） 已 git rm——删除前与 3 轮 UTC 数据逐行核对一致（v4_overlap S=4096: 3.9427ms/34.9TF，3 轮为 3.9404/3.9434/3.9617ms），按「终端级证据，已删」处理；并核验 src/main.cu：设 BENCH_OUT 时仅写 UTC 前缀文件，不落固定名。
 
 ## 8. 下游影响
 
-- 面试可说：「 CUDA 手写 FA2 前向（在线 softmax + wmma + cp.async 重叠）， 全 shape 过 2e-2 gate；并量化了 wmma vs mma 的架构税（34.8 vs 123 TFLOPS， 同卡同协议对照自家 Triton 版）」。**不可说**：「 CUDA FA2 达到 sdpa 水平」。
--「 CUDA 手写对应哪些算子」映射表更新： FA2 由「仅 Triton」→「 CUDA 版本梯（性能上限有明确归因）+ Triton 版（87% sdpa）」双证据。
+- 面试可说：「 CUDA 手写 FA2 前向（在线 softmax + wmma + cp.async 重叠）， 全 shape 过 2e-2 gate；并量化了 wmma vs mma 的架构税（34.8 vs 123 TFLOPS， 同卡同协议对照自家 Triton 版）」。**不可说**：「 CUDA FA2 达到 sdpa 水平」。 -「 CUDA 手写对应哪些算子」映射表更新： FA2 由「仅 Triton」→「 CUDA 版本梯（性能上限有明确归因）+ Triton 版（87% sdpa）」双证据。
 - 教学价值： v2 的 smem 往返设计是讲「为什么 FA 需要 mma」的最好教具。

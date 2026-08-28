@@ -19,7 +19,7 @@
 | fused_add_rmsnorm | HBM 区间（1.0 GB）v3 达 HBM 理论峰值 **91.3%**(920.3 GB/s)，相对 PyTorch eager **5.22x**，相对 torch.compile 与 Triton **打平**（差 <0.6%）;L2 常驻区间（64 MB）相对 torch.compile **3.19x** | [EXP-K05](records/EXP-K05_llm_fused_elementwise.md),`fused-norm/project-proof/data/derived_fused-norm_stability.csv` |
 | RoPE | HBM 区间（336 MB）v4 达 **89.9%**(905.9 GB/s)，相对 PyTorch eager **5.10x**；同一处「q/k 合并 launch」优化在 HBM 区间 -1.1%、在 decode 区间 **1.43x**，收益差四十倍 | [EXP-K05](records/EXP-K05_llm_fused_elementwise.md)，`rope/project-proof/data/derived_rope_stability.csv` |
 | silu_and_mul | HBM 区间（600 MB）v3 达 **92.0%**(927.7 GB/s)；融合一级实测 **1.675x**，与字节账预测的 5/3=1.667x 精确吻合；L2 区间相对 torch.compile **10.6x** | [EXP-K05](records/EXP-K05_llm_fused_elementwise.md)，`activation/project-proof/data/derived_activation_stability.csv` |
-| W8A8 linear(完整链路) | prefill **2.161x** bf16 cuBLAS(T=2048/H=4096/O=12288);decode 的 M=1 库路径不可用,自写 dp4a GEMV 在 HBM 区间 **1.972x**;同一份权重多做一次 `.contiguous()` 则整条链路变成 **0.734x** —— 3.6 倍差距全部来自 stride | [EXP-K06](records/EXP-K06_w8a8_linear.md),`w8a8/project-proof/data/derived_w8a8_stability.csv` |
+| W8A8 linear（完整链路） | prefill **2.161x** bf16 cuBLAS(T=2048/H=4096/O=12288)；decode 的 M=1 库路径不可用，自写 dp4a GEMV 在 HBM 区间 **1.972x**；同一份权重多做一次 `.contiguous()` 则整条链路变成 **0.734x**—— 3.6 倍差距全部来自 stride | [EXP-K06](records/EXP-K06_w8a8_linear.md)，`w8a8/project-proof/data/derived_w8a8_stability.csv` |
 
 ![GEMM Tensor Core 版本梯](figures/01_gemm_tc_ladder.png)
 
@@ -37,19 +37,9 @@
 
 ## 关键发现
 
-**布局适配可以比任何一级 kernel 优化都值钱。** W8A8 链路上,同一份 int8 权重只是
-多做了一次 `.contiguous()`,INT8 GEMM 就从 2.75x bf16 掉到 0.756x,整条链路从
-2.161x 变成 0.734x —— 3.6 倍的差距不涉及任何计算改动,全部来自 stride。
-INT8 Tensor Core 要求 B 矩阵列主序,而 `F.linear` 里的 `w.t()` 天然就是列主序,
-正确布局本来是免费的。这条与「赢的三种形态」并列:不改一行计算,只让数据以硬件
-想要的方式到达。
+**布局适配可以比任何一级 kernel 优化都值钱。** W8A8 链路上，同一份 int8 权重只是多做了一次 `.contiguous()`，INT8 GEMM 就从 2.75x bf16 掉到 0.756x，整条链路从 2.161x 变成 0.734x—— 3.6 倍的差距不涉及任何计算改动，全部来自 stride。 INT8 Tensor Core 要求 B 矩阵列主序，而 `F.linear` 里的 `w.t()` 天然就是列主序， 正确布局本来是免费的。这条与「赢的三种形态」并列：不改一行计算，只让数据以硬件想要的方式到达。
 
-**量化会把被测对象搬到另一个存储层级,从而破坏对比的前提。** int8 GEMV 在三个
-输出宽度下给出 5.30x / 8.82x / 1.972x 三个答案:O=12288 时 int8 权重 50 MB 落进
-4090 的 72 MB L2、bf16 权重 101 MB 仍在 HBM —— 两条臂不在同一层级上比,8.82x 是
-无效数字。只有两边都超 L2 的那一档(1.972x)可外推,且此时两条臂都贴到 93% 带宽
-峰值。这是 EXP-K04「测量效度先算账」在量化算子上的重演,而且更隐蔽:上次是忘了测
-HBM 区间,这次是量化本身跨过了 L2 的边界。
+**量化会把被测对象搬到另一个存储层级，从而破坏对比的前提。** int8 GEMV 在三个输出宽度下给出 5.30x / 8.82x / 1.972x 三个答案：O=12288 时 int8 权重 50 MB 落进 4090 的 72 MB L2、bf16 权重 101 MB 仍在 HBM—— 两条臂不在同一层级上比，8.82x 是无效数字。只有两边都超 L2 的那一档（1.972x）可外推，且此时两条臂都贴到 93% 带宽峰值。这是 EXP-K04「测量效度先算账」在量化算子上的重演，而且更隐蔽：上次是忘了测 HBM 区间，这次是量化本身跨过了 L2 的边界。
 
 **贴上带宽墙之后，语言不再重要；分水岭是融不融合。** 三个访存主导的融合逐元素算子上， HBM 区间的手写 CUDA(905.9–927.7 GB/s)、Triton(898.5–928.0)与 torch.compile (877.2–925.7)两两差距均小于 2%，统统落在 88–92% 峰值；而未融合的 PyTorch eager 落后 1.7–5.2 倍。手写 CUDA 的价值只在两处仍然成立：L2 常驻区间（相对 torch.compile 快 3.2–10.6 倍）与 decode 的 launch 敏感区间（相对 Triton 快 2.5–11 倍）——而推理引擎恰好常驻这两个区间。配合 GEMM（手写够到真 cuBLAS 85.6%）与 FA2（同一套 wmma 只够到自家 Triton 28%），「什么时候该用手写 CUDA」由此成为一条三点曲线：价值集中在需要 mma 级寄存器控制的场合。
 
@@ -168,7 +158,7 @@ bash scripts/run_ncu_all.sh
 | [EXP-K03 CUDA FA2 forward 简化版版本梯(v0→v4,量化 wmma 架构税)](records/EXP-K03_cuda_fa2_ladder.md) | CUDA FA2 版本梯 v0 至 v4：同一套 wmma 工具箱只到 34.8 TFLOPS（同协议 Triton 版的 28%，跨 harness）——架构税量化，瓶颈在 shared memory 往返的相位链。 |
 | [EXP-K04 标准库基准补齐与两区间重测(CUB / cuDNN 入场)](records/EXP-K04_standard_library_baselines.md) | 补齐同算子官方基准（CUB / cuDNN）并分 L2 常驻与 HBM-bound 两区间重测：HBM-bound 时 reduce v7 达 HBM 理论带宽 93.9%、与 CUB 差 0.7%，L2 常驻时 CUB 快 33.3%；softmax 对齐形状快 cuDNN 6.7%、非对齐慢 9.9%；gemv v3 快 `cublasSgemv` 34.1%。 |
 | [EXP-K05 LLM 融合逐元素算子三件套:fused_add_rmsnorm / rope / silu_and_mul](records/EXP-K05_llm_fused_elementwise.md) | LLM 融合逐元素算子三件套（fused_add_rmsnorm / RoPE / silu_and_mul）版本梯，并首次把手写 CUDA、Triton、PyTorch eager、torch.compile 四类臂放进同一个 harness 受测：HBM 区间三种实现两两差 <2%，L2 与 decode 区间手写领先 3.2–10.6x 与 2.5–11x；七条跑前锁定的预测中四条成立、两条被数据推翻。 |
-| [EXP-K06 W8A8 linear 完整链路：per-token 量化 + INT8 GEMM/GEMV + 融合反量化](records/EXP-K06_w8a8_linear.md) | W8A8 linear 完整链路(per-token 量化 + INT8 GEMM + 融合反量化 + decode 用的 dp4a GEMV):prefill 2.161x、decode HBM 区间 1.972x;三步分解显示量化只占 1.8%、反量化占 26.7%;权重布局值 3.6 倍;M>16 是库路径的硬约束。 |
+| [EXP-K06 W8A8 linear 完整链路：per-token 量化 + INT8 GEMM/GEMV + 融合反量化](records/EXP-K06_w8a8_linear.md) | W8A8 linear 完整链路（per-token 量化 + INT8 GEMM + 融合反量化 + decode 用的 dp4a GEMV）：prefill 2.161x、decode HBM 区间 1.972x；三步分解显示量化只占 1.8%、反量化占 26.7%；权重布局值 3.6 倍；M>16 是库路径的硬约束。 |
 
 ## 测量方法
 

@@ -63,27 +63,14 @@
 
 ## 2026-08-26(续)W8A8 linear 完整链路(EXP-K06《W8A8 linear 完整链路》)
 
-**做了什么**:新增子项目 `w8a8/` —— per-token 动态量化(v0/v1/v2)、反量化
-epilogue(v0/v1)、decode 用的 dp4a int8 GEMV(v0/v1),INT8 GEMM 直接用
-`torch._int_mm`。bench 覆盖 prefill 四档形状 + decode 三档(按权重工作集分 L2/HBM)。
-配套 README + project-intro + records/EXP-K06。
+**做了什么**：新增子项目 `w8a8/`—— per-token 动态量化（v0/v1/v2）、反量化 epilogue(v0/v1)、decode 用的 dp4a int8 GEMV(v0/v1)，INT8 GEMM 直接用 `torch._int_mm`。bench 覆盖 prefill 四档形状 + decode 三档（按权重工作集分 L2/HBM）。配套 README + project-intro + records/EXP-K06。
 
-**为什么**:用户指出面试被问「int8 量化算子性能怎么样?有没有放到引擎里?」。
-本仓此前只有量化这一步(int8-quantize),而只插量化算子而后面仍走 bf16 GEMM
-是负收益。必须补完整链路才能回答。
+**为什么**：用户指出面试被问「int8 量化算子性能怎么样？有没有放到引擎里？」。本仓此前只有量化这一步（int8-quantize），而只插量化算子而后面仍走 bf16 GEMM 是负收益。必须补完整链路才能回答。
 
-**关键数字**:prefill 1.905–2.161x;decode HBM 区间 1.972x(L2 区间 5.30x、
-跨层级的 8.82x 为无效数字);三步分解 量化 1.8% / GEMM 78.5% / 反量化 26.7%;
-**权重多一次 .contiguous() → 整条链路 2.161x 变 0.734x**;
-`torch._int_mm` 要求 M>16,decode 走不通(硬约束)。
+**关键数字**：prefill 1.905–2.161x；decode HBM 区间 1.972x（L2 区间 5.30x、跨层级的 8.82x 为无效数字）；三步分解 量化 1.8% / GEMM 78.5% / 反量化 26.7%； **权重多一次 .contiguous() → 整条链路 2.161x 变 0.734x**； `torch._int_mm` 要求 M>16，decode 走不通（硬约束）。
 
-**产物路径**:`w8a8/`、`records/EXP-K06_w8a8_linear.md`、
-`w8a8/project-proof/data/`。
+**产物路径**：`w8a8/`、`records/EXP-K06_w8a8_linear.md`、 `w8a8/project-proof/data/`。
 
-**踩坑**:①bench 里写了多余的 `acc.copy_(torch._int_mm(...))`,白搬 100 MB,
-占整条链路近四分之一——分解计时之和对不上总时间就是这类多余搬运的信号;
-②int8 GEMV 的 x_scale 第一版用主机 double 传参,调用方要 `.item()`,
-那是设备到主机的隐式同步,decode 逐层放大成每 token 上百次;改传设备指针。
-③derive_stability.py 遇到 nan 列会抛 AttributeError,已加剔除。
+**踩坑**：①bench 里写了多余的 `acc.copy_(torch._int_mm(...))`，白搬 100 MB， 占整条链路近四分之一——分解计时之和对不上总时间就是这类多余搬运的信号； ②int8 GEMV 的 x_scale 第一版用主机 double 传参，调用方要 `.item()`， 那是设备到主机的隐式同步，decode 逐层放大成每 token 上百次；改传设备指针。 ③derive_stability.py 遇到 nan 列会抛 AttributeError，已加剔除。
 
-**下一步**:接引擎(已完成,见 llm-engine#EXP-D24)。
+**下一步**：接引擎（已完成，见 llm-engine#EXP-D24）。

@@ -13,7 +13,7 @@
 
 ## 1. 目的与假设
 
-背景：本仓四个 CUDA kernel 全是行核/向量核，唯一的 Tensor Core GEMM 在 triton-kernels 仓（EXP-T02《流水线 GEMM》，160.5 TFLOPS）。面试「手写 CUDA 用过 Tensor Core 吗」此前只能指本机没有代码的 Llama2 引擎——证据可及性风险。本实验用 CUDA 原生 API 把版本梯补出来。
+背景：本仓四个 CUDA kernel 全是行核/向量核，唯一的 Tensor Core GEMM 在 triton-kernels 仓（triton-kernels#EXP-T02《流水线 GEMM》，160.5 TFLOPS）。面试「手写 CUDA 用过 Tensor Core 吗」此前只能指本机没有代码的 Llama2 引擎——证据可及性风险。本实验用 CUDA 原生 API 把版本梯补出来。
 
 可证伪假设（跑前锁定）：
 - H1：fp16 输入下，CUDA-core 路线（v0/v1）与 Tensor Core 路线（v2+）有数量级差距（>5×），且 v1 的 smem tiling 在 CUDA-core 路线上收益有限（瓶颈在算力不在访存）。
@@ -82,10 +82,9 @@ nvcc -O3 -arch=sm_89 -Xptxas -v -c src/gemm_v{2,3,4}.cu -Iinclude -o <tmp>
 
 - 首次单轮跑（build 后验证）写入了固定名 benchmark_results.csv，与 CORE bench 铁则（UTC 前缀新文件）不符——当场整改：main.cu 加 BENCH_OUT + provenance 首行，固定名文件已删，正式 3 轮全部 UTC 前缀。该文件生前数字与 3 轮一致（v4 132.8/cublas 155.4，终端级证据）。
 - v1 的 std≈0(21.11±0.05ms)：慢版仅 5 iters，但绝对波动小，不影响结论。
-- 开放问题（backlog，不阻塞）：v5 = mma PTX + ldmatrix + smem swizzle， 验证「wmma→mma 差距」假设；非方阵/LLM 实际形状（如 qwen8b 系列）对照 EXP-T02 同表。
+- 开放问题（backlog，不阻塞）：v5 = mma PTX + ldmatrix + smem swizzle， 验证「wmma→mma 差距」假设；非方阵/LLM 实际形状（如 qwen8b 系列）对照 triton-kernels#EXP-T02 同表。
 
 ## 8. 下游影响
 
-- 简历/面试可说（措辞红线）：「手写 CUDA Tensor Core GEMM（wmma+cp.async 双缓冲+大 tile），4096³ 达真 cuBLAS 85.6%（133 TFLOPS，4090,3 轮）」。 **不可说**：超过/追平 cuBLAS（那是 Triton 版的数字，且系跨 harness）。
--「CUDA 手写对应哪些算子」缺口收敛：Tensor Core GEMM 由「仅 Triton/ 本机无 CUDA 证据」→「本仓有完整版本梯+raw」。
+- 简历/面试可说（措辞红线）：「手写 CUDA Tensor Core GEMM（wmma+cp.async 双缓冲+大 tile），4096³ 达真 cuBLAS 85.6%（133 TFLOPS，4090,3 轮）」。 **不可说**：超过/追平 cuBLAS（那是 Triton 版的数字，且系跨 harness）。 -「CUDA 手写对应哪些算子」缺口收敛：Tensor Core GEMM 由「仅 Triton/ 本机无 CUDA 证据」→「本仓有完整版本梯+raw」。
 - PORTFOLIO 增补项目 5 指针；README 索引 + 红线表更新。

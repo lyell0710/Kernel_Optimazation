@@ -45,4 +45,4 @@ out      = rmsnorm(residual) * w # 本层分支的归一化输入
 
 - 归约原语与 [cuda-reduce](../cuda-reduce/) 同源，但结论相反：同一手法在 compute-bound 的 reduce 上是台阶，在这里只是坡。
 - 与 [rope](../rope/)、[activation](../activation/) 共用一套 harness 与方法论， 三者合起来构成"访存主导算子"这一类的完整样本（EXP-K05《LLM 融合逐元素算子三件套》）。
-- 接进自研推理引擎的端到端结果见 llm-engine 的 EXP-D23《融合逐元素算子接入》。
+- 接进自研推理引擎的端到端结果见 llm-engine 的 llm-engine#EXP-D23《融合逐元素算子接入》。

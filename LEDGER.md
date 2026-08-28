@@ -6,10 +6,10 @@
 
 | 编号 | 名称 | slug | 日期 | 状态 | 关键数字（指针） |
 |---|---|---|---|---|---|
-| [EXP-K01](records/EXP-K01_4090_rebench.md) | 四 kernel 4090 重基准:roofline 迁移(4070 Laptop → 4090) | 4090_rebench | 2026-08-23 | 完成（带 8/24 勘误） | 4090 reduce v7 反超 cuBLAS 24.5%（3 轮）；softmax 对比句作废（对照系自写 kernel，勘误见记录 §5）；gemv v3 快 cuBLAS **37.8%**（3 轮；单轮 84% 不可复现——cuBLAS 侧波动，勘误见 §7 闭环）→ 各 project-proof/data/ |
-| [EXP-K04](records/EXP-K04_standard_library_baselines.md) | 标准库基准补齐与两区间重测(CUB / cuDNN 入场) | standard_library_baselines | 2026-08-25 | 完成 | 补 CUB/cuDNN 同算子基准并两区间重测：HBM-bound v7 93.9% 峰值（与 CUB 差 0.7%）、L2 区间 CUB 快 33.3%、softmax vs cuDNN +6.7%/−9.9%、gemv 34.1%；**作废** "reduce 反超 cuBLAS 24.5%" 的对外用法 → records/data/exp_k04_* |
-| [EXP-K02](records/EXP-K02_cuda_gemm_tc_ladder.md) | CUDA Tensor Core GEMM 版本梯(v0→v4,vs 真 cuBLAS) | cuda_gemm_tc_ladder | 2026-08-24 | 完成 | Tensor Core GEMM v0→v4:133.1±0.97 TFLOPS = 真 cuBLAS 85.6%（4096³,3 轮）→ gemm/project-proof/data/ |
-| [EXP-K03](records/EXP-K03_cuda_fa2_ladder.md) | CUDA FA2 forward 简化版版本梯(v0→v4,量化 wmma 架构税) | cuda_fa2_ladder | 2026-08-24 | 完成 | CUDA FA2 v0→v4:34.8±0.12 TFLOPS = 自家 Triton 28%（跨 harness）,wmma 架构税量化 → flash-attn/project-proof/data/ |
+| [EXP-K01](records/EXP-K01_4090_rebench.md) | 四 kernel 4090 重基准：roofline 迁移（4070 Laptop → 4090） | 4090_rebench | 2026-08-23 | 完成（带 8/24 勘误） | 4090 reduce v7 反超 cuBLAS 24.5%（3 轮）；softmax 对比句作废（对照系自写 kernel，勘误见记录 §5）；gemv v3 快 cuBLAS **37.8%**（3 轮；单轮 84% 不可复现——cuBLAS 侧波动，勘误见 §7 闭环）→ 各 project-proof/data/ |
+| [EXP-K04](records/EXP-K04_standard_library_baselines.md) | 标准库基准补齐与两区间重测（CUB / cuDNN 入场） | standard_library_baselines | 2026-08-25 | 完成 | 补 CUB/cuDNN 同算子基准并两区间重测：HBM-bound v7 93.9% 峰值（与 CUB 差 0.7%）、L2 区间 CUB 快 33.3%、softmax vs cuDNN +6.7%/−9.9%、gemv 34.1%；**作废** "reduce 反超 cuBLAS 24.5%" 的对外用法 → records/data/exp_k04_* |
+| [EXP-K02](records/EXP-K02_cuda_gemm_tc_ladder.md) | CUDA Tensor Core GEMM 版本梯（v0→v4,vs 真 cuBLAS） | cuda_gemm_tc_ladder | 2026-08-24 | 完成 | Tensor Core GEMM v0→v4:133.1±0.97 TFLOPS = 真 cuBLAS 85.6%（4096³,3 轮）→ gemm/project-proof/data/ |
+| [EXP-K03](records/EXP-K03_cuda_fa2_ladder.md) | CUDA FA2 forward 简化版版本梯（v0→v4，量化 wmma 架构税） | cuda_fa2_ladder | 2026-08-24 | 完成 | CUDA FA2 v0→v4:34.8±0.12 TFLOPS = 自家 Triton 28%（跨 harness）,wmma 架构税量化 → flash-attn/project-proof/data/ |
 
 ## 措辞红线表(对外文本逐条对照)
 

@@ -294,7 +294,7 @@ GEMM 与 FA2 用同一套 wmma 工具箱得到相反结局——GEMM 够到 cuBL
 | softmax | 76% | reduce、计算、写回的复合算子，两次同步穿插 |
 | quantize | 85% | 读 fp32 写 int8，dtype 不对称（4:1），write 端带宽天然低 |
 
-(本表为 Laptop 时代 NCU 采集；4090 容器内 NCU 不可用（EXP-K01 §7），结论按算子结构解读，不依赖具体卡。)
+（本表为 Laptop 时代 NCU 采集；4090 容器内 NCU 不可用（EXP-K01 §7），结论按算子结构解读，不依赖具体卡。）
 
 此表说明 DRAM% 不是越高越好的孤立指标，要与算子结构对照解读：76% 对应 softmax 的算法上限，96% 对应 reduce 的算法上限，二者不能横向比较。
 

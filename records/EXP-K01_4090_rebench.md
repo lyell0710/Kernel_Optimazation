@@ -1,6 +1,6 @@
 # EXP-K01 · 四 kernel 4090 重基准:roofline 迁移(4070 Laptop → 4090)
 
-> **一句话结论**：同一批 kernel 换到 4090 重测，「版本排序会不会反转」因旧机数据自相矛盾而**不可判定**；4090 端的结论独立成立，并暴露了 softmax 的 "cublas" 对照其实是自写参照——该勘正在 EXP-K04 落地。
+> **一句话结论**：同一批 kernel 换到 4090 重测，「版本排序会不会反转」因旧机数据自相矛盾而**不可判定**；4090 端的结论独立成立，并暴露了 softmax 的 "cublas" 对照其实是自写参照——该勘正在 EXP-K04《标准库基准补齐与两区间重测》落地。
 
 ## 0. 元信息
 
@@ -49,7 +49,7 @@
 ## 7. 异常、偏差与开放问题
 
 - **NCU 不可用**：本容器 ERR_NVGPUCTRPERM（性能计数器无权限，与 py-spy ptrace 同类平台限制）→"细节重过（stall/occupancy）"无法在 4090 复采； 沿用 `artifacts/ncu_for_mac/` 的 Laptop 时代 ncu-rep 作机理参照， 4090 归因以带宽模型推断并注明证据等级。
-- **int8 baseline 口径**：仓内 baseline 为 CPU 级实现（106ms/1024²）， 1.8e4× 不可对外引用；简历的"比 PyTorch eager 快 6.6×"是另一口径， 4090 版 PyTorch-eager 对照在 triton-kernels 仓补测（EXP-T03《三件套移植 + torch 绑定》）。
+- **int8 baseline 口径**：仓内 baseline 为 CPU 级实现（106ms/1024²）， 1.8e4× 不可对外引用；简历的"比 PyTorch eager 快 6.6×"是另一口径， 4090 版 PyTorch-eager 对照在 triton-kernels 仓补测（triton-kernels#EXP-T03《三件套移植 + torch 绑定》）。
 - **整改项（违 CORE bench 铁则）**：本仓 bench 直接覆盖 CSV（trunc 旧值）， 旧值仅靠 git 提交锚定——后续应改 UTC 前缀新文件；本次以"提交对"作版本锚，未改 harness（老项目缺哪补哪，不推倒）。
 - **stability 覆盖勘误**：仅 cuda-reduce 有 stability CSV（新旧皆有， 且旧版含 v7=0.2734 与旧 results 的 1.665 矛盾——矛盾本身入档）； 其余三项目 bench 不产 stability 文件。§4 首版"4090 版已覆盖全版本" 的说法错误，已改。整改项：四 bench 补 ≥3 轮 stability 输出——**reduce 头条已补**(8/24， records/data/exp_k01_reduce_3rounds.csv，24.5%)；其余三项目待补。
 

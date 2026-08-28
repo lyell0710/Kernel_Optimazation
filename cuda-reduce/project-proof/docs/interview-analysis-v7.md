@@ -1,8 +1,7 @@
 # CUDA Reduction 性能分析报告（面试版，含 v7）
 
 ## 1. 项目目标与结论一句话
-本项目通过手写 CUDA reduction，从 `baseline` 逐步优化到 `v7`。
-**最终结论：`v7` 在保证正确性的前提下达到当前最优延迟 `0.277073 ms`，相对 `baseline` 提升 `1256.26x`，并且解决了 `v6` 的性能回退问题。**
+本项目通过手写 CUDA reduction，从 `baseline` 逐步优化到 `v7`。 **最终结论：`v7` 在保证正确性的前提下达到当前最优延迟 `0.277073 ms`，相对 `baseline` 提升 `1256.26x`，并且解决了 `v6` 的性能回退问题。**
 
 ---
 
@@ -69,8 +68,7 @@
 2. **复用** `d_partial` 缓冲区（避免每次 `cudaMalloc/cudaFree`）
 
 ### 5.3 NCU 指标怎么解释
-在 `ncu` 单 kernel 对比中，`v7` 的单次 kernel 时间不一定更短；但端到端 benchmark 明显更快。
-这说明优化收益主要来自 **host/API 路径削减**，而不是纯 kernel 算力提升。
+在 `ncu` 单 kernel 对比中，`v7` 的单次 kernel 时间不一定更短；但端到端 benchmark 明显更快。这说明优化收益主要来自 **host/API 路径削减**，而不是纯 kernel 算力提升。
 
 ---
 
