@@ -1,6 +1,6 @@
 # NCU 报告导出包(供 Mac 端 Nsight Compute GUI 打开)
 
-共 50 份 `.ncu-rep`，按算子分类于 `reports/<算子>/`。逐份摘要见 `manifest.csv`。本文件由 `scripts/export_ncu_for_mac.py` 生成。
+共 56 份 `.ncu-rep`，按算子分类于 `reports/<算子>/`。逐份摘要见 `manifest.csv`。本文件由 `scripts/export_ncu_for_mac.py` 生成。
 
 ## 采集批次
 
@@ -8,7 +8,7 @@
 
 | GPU | SM 数 | 主机 | Nsight Compute | 采集日期 | 报告数 |
 |---|---:|---|---|---|---:|
-| NVIDIA GeForce RTX 4090 | 128 | 10-60-214-39 | 2025.1.1.0 (build 35528883) (public-release) | 2026-Aug-29 | 44 |
+| NVIDIA GeForce RTX 4090 | 128 | 10-60-214-39 | 2025.1.1.0 (build 35528883) (public-release) | 2026-Aug-29 | 50 |
 | NVIDIA GeForce RTX 4070 Laptop GPU | 36 | ubuntu22 | 2026.1.1.0 (build 37634170) (public-release) | 2026-May-03 | 5 |
 | NVIDIA GeForce RTX 4070 Laptop GPU | 36 | ubuntu22 | 2022.4.1.0 (build 32308335) (public-release) | 2026-May-03 | 1 |
 
@@ -30,12 +30,13 @@
 |---|---:|---|
 | `cuda-reduce` | 14 | baseline, bench, v0, v1, v2, v3, v4, v5, v6, v7 |
 | `flash-attn` | 6 | ref_naive, v0_warp_row, v1_smem_tile, v2_wmma, v3_8warp, v4_overlap |
+| `fused-norm` | 6 | v0_add, v0_rmsnorm, v1, v2, v3, v4 |
 | `gemm` | 6 | cublas, v0, v1, v2_wmma, v3_dbuf, v4_bigtile |
 | `gemv` | 7 | baseline, cublas, v0, v1, v2, v3, v4 |
 | `int8-quantize` | 6 | baseline, v0, v1, v2, v3, v4 |
 | `softmax` | 11 | baseline, cublas, smoke, v0, v1, v2, v3, v4, v4.2, v4.3, v4.4 |
 
-**未覆盖（零 NCU 数据）**：`activation`, `fused-norm`, `rope`, `w8a8`。
+**未覆盖（零 NCU 数据）**：`activation`, `rope`, `w8a8`。
 
 ## 含多个 grid 的报告（读图时先认清自己在看哪一次 launch）
 
@@ -62,6 +63,12 @@
 | `reports/flash-attn/fa2_v2_wmma_profile.ncu-rep` | 92 | 6 |
 | `reports/flash-attn/fa2_v3_8warp_profile.ncu-rep` | 92 | 6 |
 | `reports/flash-attn/fa2_v4_overlap_profile.ncu-rep` | 92 | 6 |
+| `reports/fused-norm/fused_norm_v0_add_profile.ncu-rep` | 48 | 3 |
+| `reports/fused-norm/fused_norm_v0_rmsnorm_profile.ncu-rep` | 48 | 4 |
+| `reports/fused-norm/fused_norm_v1_profile.ncu-rep` | 48 | 4 |
+| `reports/fused-norm/fused_norm_v2_profile.ncu-rep` | 48 | 4 |
+| `reports/fused-norm/fused_norm_v3_profile.ncu-rep` | 48 | 4 |
+| `reports/fused-norm/fused_norm_v4_profile.ncu-rep` | 48 | 4 |
 
 ## 对照臂口径陷阱
 
@@ -90,18 +97,24 @@
 | `cuda-reduce` | v6 | 4 | 2 | `(1024, 1, 1)` | 73.86 us | 5.88 | 92.86 | 92.86 | 86.76 | 17 |
 | `cuda-reduce` | v7 | 1 | 1 | `(288, 1, 1)` | 319.26 us | 6.10 | 95.79 | 95.79 | 84.05 | 17 |
 | `cuda-reduce` | v7 | 4 | 2 | `(1024, 1, 1)` | 73.73 us | 5.91 | 92.90 | 92.90 | 87.27 | 17 |
-| `flash-attn` | ref_naive | 8 | 6 | `(4096, 32, 1)` | 43.10 ms | 96.21 | 96.21 | 0.14 | 49.19 | 40 |
-| `flash-attn` | v0_warp_row | 92 | 6 | `(4096, 32, 1)` | 26.28 ms | 93.95 | 93.95 | 0.23 | 49.22 | 40 |
-| `flash-attn` | v1_smem_tile | 92 | 6 | `(1024, 32, 1)` | 30.31 ms | 46.39 | 46.39 | 0.20 | 24.84 | 40 |
+| `flash-attn` | ref_naive | 8 | 6 | `(4096, 32, 1)` | 43.02 ms | 96.20 | 96.20 | 0.14 | 49.19 | 40 |
+| `flash-attn` | v0_warp_row | 92 | 6 | `(4096, 32, 1)` | 26.26 ms | 93.85 | 93.85 | 0.23 | 49.22 | 40 |
+| `flash-attn` | v1_smem_tile | 92 | 6 | `(1024, 32, 1)` | 30.27 ms | 46.39 | 46.39 | 0.20 | 24.83 | 40 |
 | `flash-attn` | v2_wmma | 92 | 6 | `(64, 32, 1)` | 7.09 ms | 12.80 | 44.58 | 0.83 | 8.33 | 64 |
-| `flash-attn` | v3_8warp | 92 | 6 | `(64, 32, 1)` | 5.33 ms | 18.22 | 61.45 | 1.11 | 16.67 | 95 |
-| `flash-attn` | v4_overlap | 92 | 6 | `(64, 32, 1)` | 5.01 ms | 20.81 | 62.97 | 1.17 | 16.67 | 80 |
-| `gemm` | cublas | 6 | 1 | `(32, 32, 3)` | 971.01 us | 48.74 | 53.77 | 10.00 | 16.36 | 234 |
-| `gemm` | v0 | 7 | 1 | `(256, 256, 1)` | 30.41 ms | 98.81 | 98.81 | 0.28 | 99.50 | 26 |
-| `gemm` | v1 | 7 | 1 | `(128, 128, 1)` | 26.08 ms | 79.39 | 79.39 | 0.33 | 66.66 | 33 |
-| `gemm` | v2_wmma | 5 | 1 | `(64, 64, 1)` | 1.85 ms | 25.64 | 95.39 | 4.55 | 70.23 | 54 |
-| `gemm` | v3_dbuf | 5 | 1 | `(64, 64, 1)` | 1.76 ms | 26.89 | 87.92 | 4.86 | 40.25 | 61 |
-| `gemm` | v4_bigtile | 5 | 1 | `(32, 32, 1)` | 1.25 ms | 37.71 | 80.48 | 6.76 | 32.36 | 92 |
+| `flash-attn` | v3_8warp | 92 | 6 | `(64, 32, 1)` | 5.35 ms | 18.22 | 61.44 | 1.10 | 16.67 | 95 |
+| `flash-attn` | v4_overlap | 92 | 6 | `(64, 32, 1)` | 4.99 ms | 20.82 | 62.97 | 1.18 | 16.67 | 80 |
+| `fused-norm` | v0_add | 48 | 3 | `(4096, 1, 1)` | 40.61 us | 14.46 | 84.11 | 84.11 | 89.15 | 16 |
+| `fused-norm` | v0_rmsnorm | 48 | 4 | `(32768, 1, 1)` | 982.30 us | 36.93 | 52.14 | 52.14 | 65.89 | 16 |
+| `fused-norm` | v1 | 48 | 4 | `(32768, 1, 1)` | 1.30 ms | 32.11 | 81.40 | 81.40 | 64.89 | 16 |
+| `fused-norm` | v2 | 48 | 4 | `(32768, 1, 1)` | 1.18 ms | 21.47 | 90.13 | 90.13 | 64.40 | 16 |
+| `fused-norm` | v3 | 48 | 4 | `(32768, 1, 1)` | 1.13 ms | 11.27 | 93.43 | 93.43 | 86.71 | 26 |
+| `fused-norm` | v4 | 48 | 4 | `(32768, 1, 1)` | 1.12 ms | 9.94 | 93.56 | 93.56 | 91.88 | 23 |
+| `gemm` | cublas | 6 | 1 | `(32, 32, 3)` | 968.54 us | 48.78 | 53.89 | 10.00 | 16.36 | 234 |
+| `gemm` | v0 | 7 | 1 | `(256, 256, 1)` | 30.51 ms | 98.81 | 98.81 | 0.28 | 99.50 | 26 |
+| `gemm` | v1 | 7 | 1 | `(128, 128, 1)` | 26.20 ms | 79.38 | 79.38 | 0.33 | 66.66 | 33 |
+| `gemm` | v2_wmma | 5 | 1 | `(64, 64, 1)` | 1.83 ms | 25.63 | 95.35 | 4.59 | 70.19 | 54 |
+| `gemm` | v3_dbuf | 5 | 1 | `(64, 64, 1)` | 1.76 ms | 26.86 | 87.82 | 4.85 | 40.25 | 61 |
+| `gemm` | v4_bigtile | 5 | 1 | `(32, 32, 1)` | 1.26 ms | 37.79 | 80.65 | 6.73 | 32.37 | 92 |
 | `gemv` | baseline | 2 | 1 | `(4096, 1, 1)` | 143.49 us | 82.08 | 82.08 | 23.80 | 38.17 | 37 |
 | `gemv` | cublas | 2 | 1 | `(512, 1, 1)` | 38.34 us | 12.85 | 89.24 | 89.24 | 32.61 | 59 |
 | `gemv` | v0 | 2 | 1 | `(4096, 1, 1)` | 38.18 us | 25.80 | 89.55 | 89.55 | 93.68 | 38 |
