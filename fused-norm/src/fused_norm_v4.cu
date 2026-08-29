@@ -22,7 +22,18 @@
 // ============================================================================
 #include "fused_norm.h"
 
-struct alignas(16) BF16x8 { __nv_bfloat162 h[4]; };
+struct alignas(16) BF16x8 {
+    // 为什么不是裸的 `__nv_bfloat162 h[4]`:那样写 nvcc 按**成员类型**逐个生成访存,
+    // 编出来是 4 条 32 位 LDG,不是一条 LDG.E.128——alignas(16) 只保证地址对齐,
+    // 不强制向量化。实测(RTX 4090 / CUDA 12.8):裸结构体 4×LDG.E + 4×STG.E,
+    // 本写法 1×LDG.E.128 + 1×STG.E.128,活指令 56→48。
+    // union 给出 float4 视图,显式拷贝语义让整体赋值走 raw 这一条 128 位通路,
+    // 于是所有 `BF16x8 v = p[i];` / `p[i] = v;` 的调用点一行都不用改。
+    union { float4 raw; __nv_bfloat162 h[4]; };
+    __device__ __forceinline__ BF16x8() {}
+    __device__ __forceinline__ BF16x8(const BF16x8& o) { raw = o.raw; }
+    __device__ __forceinline__ BF16x8& operator=(const BF16x8& o) { raw = o.raw; return *this; }
+};
 
 template <int MAX_WAVES>
 __global__ void v4_kernel(__nv_bfloat16* __restrict__ out,
