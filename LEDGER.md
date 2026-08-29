@@ -30,7 +30,8 @@
 | FA2「达到 sdpa/Triton 水平」 | 禁用（现状 28%） | v5 mma PTX 路线；EXP-K03 §8 |
 | 一切 vs Triton/sdpa 数字 | 跨 harness，推断级，引用必须带此限定 | 同 harness 复测；EXP-K03 §7 |
 | softmax 的任何「vs cuBLAS」对比句 | 作废（对照物系自写 kernel，cuBLAS 无 softmax API） | 无解锁；EXP-K01 §5 勘误 |
-| gemv 单轮领先幅度 | 作废，现行口径 = 快 **34.1%**（3 轮；可写「34%，轮间 34–38%」） | EXP-K04 §4.3 取代 EXP-K01 §7 的 37.8%；差异为 cuBLAS 侧轮间波动 |
+| gemv 单轮领先幅度 | 作废，现行口径 = 快 **34.1%**（3 轮；可写「34%，轮间 34–38%」）——**必须带 L2 常驻限定，见下一行** | EXP-K04 §4.3 取代 EXP-K01 §7 的 37.8%；差异为 cuBLAS 侧轮间波动 |
+| gemv「快 34.1%」的适用区间 | **只在 L2 常驻区间可报**；HBM 区间两者持平（1.4%） | 工作集 4096×2048 fp32 = 33.55 MB < 72 MB L2；bench 等效带宽 2633 GB/s = DRAM 峰值 2.6 倍，关掉 cache flush 后 `dram__bytes_read` = **0**。与 reduce 同型判据（超峰值即落 L2）。EXP-K09 §5.8/§6.7 |
 | reduce「≈1193× 端到端」 | 仅限带「4070 Laptop」定语引用（授权例外） | 4090 端到端口径未测；见下节授权例外条 |
 |「smem 是 GEMM/FA2 剩余差距的瓶颈」 | **可用**（4090 计数器实测） | EXP-K07《NCU 计数器闭环》 §5.4/§6.5：FA2 v4 `short_scoreboard` 50.13% vs `long_scoreboard` 0.31%；gemm v4 smem 冲突波前占 77.1%（放大 4.37×），cuBLAS 2.4%（1.02×） |
 |「swizzle 能消除该瓶颈」 | **推断，不可当实测说** | 本轮只证明瓶颈在 smem，未验证 swizzle 是解法；解锁条件 = 实现 v5（mma PTX + ldmatrix + swizzle）并同协议复测 |
@@ -68,7 +69,7 @@
 - ~~待 NCU 计数器权限：「swizzle / smem 往返」类推断转实测~~ —— **已完成**（EXP-K07《NCU 计数器闭环》）。在一台计数器可用的 4090 虚机上补齐七个算子共 51 份报告；`docs/ncu_reading_guide.md` §4 五条推断闭合四条（第 1、2、5 条实测闭合，第 4 条由 nsys 解决，第 3 条判为伪需求——融合版不存在，NCU 也证不了）。
 - 待同 harness 复测：一切 vs Triton/sdpa 数字（现为跨 harness 推断级）。
 - 开放问题：cuBLAS gemv 对照单轮慢 35% 未剖（冷启动/时钟态候选，EXP-K01 §7）。
-- 开放问题（EXP-K07《NCU 计数器闭环》 §6.6b）：gemv「v3 快 cuBLAS 34.1%」在计数器环境**未被覆盖**——profiler 钉住的 size 上仅快 1.4%，且 DRAM 读字节差 0.01%、occupancy 近两倍只换 1.4%。既非证实也非证伪；要剖清须让 profiler 钉在 bench 报出该数字的同一 size 上。原 occupancy 候选已撤回。
+- ~~开放问题：gemv「34.1%」在计数器环境未被覆盖~~ —— **已闭环**（EXP-K09 §6.7）：并非「钉错 size」（bench 只有一个形状），而是 **cache regime 不同**——34.1% 是 L2 常驻区间的数字，HBM 区间两者持平（1.4%）。红线表已补区间限定。
 - ~~待重采~~ **已完成**（EXP-K09《向量化修复后的扇区账复采》）：`fused-norm` 六份及 rope/activation/w8a8 共 23 份已于 `6f320f2` 重采。前后对照见 EXP-K09 §5.1——L1TEX 降幅精确 4.00×，DRAM 读仍为 2.000×S 算法下界。
 - ~~待修~~ **已完成**（`bc18547`）：`rope` v3/v4、`activation` v2/v3、`w8a8` quant.v2 与 dequant 六处向量化载体已全部替换为 union 定义，SASS 判据全部转正。
 

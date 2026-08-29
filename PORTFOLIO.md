@@ -129,7 +129,7 @@ NCU 细节（Laptop 采集，行名已更正）见 `softmax/project-proof/profil
 
 算子：mat(4096x2048 fp32)x vec(2048 fp32)= y(4096 fp32)。
 
-结果（4070 Laptop 口径；4090 端 3 轮口径为 v3 比 `cublasSgemv` 快 34.1%，[EXP-K04](records/EXP-K04_standard_library_baselines.md)，原始数据 `records/data/exp_k04_gemv_3rounds.csv`；前一轮同协议为 37.8%，差异来自 cuBLAS 侧的轮间波动）：
+结果（4070 Laptop 口径；4090 端 3 轮口径为 v3 比 `cublasSgemv` 快 34.1%，[EXP-K04](records/EXP-K04_standard_library_baselines.md)，原始数据 `records/data/exp_k04_gemv_3rounds.csv`；前一轮同协议为 37.8%，差异来自 cuBLAS 侧的轮间波动。**该幅度的适用区间是「工作集常驻 L2」**——4096×2048 fp32 = 33.6 MB 放得进 72 MB L2；一旦强制从显存冷读，两者同撞带宽墙、差距收敛到 1.4%，见 [EXP-K09](records/EXP-K09_post_vectorization_sector_ledger.md) §5.8）：
 
 | 版本 | 时延 | 说明 |
 |---|---|---|
@@ -236,7 +236,7 @@ GEMM 与 FA2 用同一套 wmma 工具箱得到相反结局——GEMM 够到 cuBL
 | reduce(4090，HBM-bound) | v7 与官方 CUB 相差 **0.7%**（93.9% 对 94.5% 理论峰值，3 轮，EXP-K04） | 单一 shape 的 two-pass 特化把 DRAM 压到物理墙 | 无余量可赢——同一条 DRAM 带宽线 |
 | reduce（4090，L2 常驻） | CUB 比 v7 快 **33.3%**（3 轮，EXP-K04） |—— | 分尺寸 tuning（延迟隐藏 / 展开度 / 两阶段策略） |
 | softmax(4090) | v4 比 cuDNN 快 **6.7%**（对齐 1024x1024）；非对齐 1024x1500 反被 cuDNN 快 9.9%（3 轮，EXP-K04） | 对齐形状上的 float4 + warp shuffle 特化 | 所有形状都不塌 |
-| gemv(4090) | v3 比 `cublasSgemv` 快 **34.1%**（3 轮，EXP-K04） | DRAM% 95% 对 95%（warp shuffle 极简结构） | L2 命中率 21% 对 2.7%(column-major tiling) |
+| gemv(4090) | v3 比 `cublasSgemv` 快 **34.1%**（3 轮，EXP-K04；**限 L2 常驻区间**，冷读时收敛到 1.4%，EXP-K09 §5.8） | DRAM% 95% 对 95%（warp shuffle 极简结构） | L2 命中率 21% 对 2.7%(column-major tiling) |
 | quantize | v4 比 PyTorch eager 快 **6.6x** | 1 kernel 对 4 kernel（融合避免中间 tensor） | 灵活性（eager 模式支持动态图） |
 
 推论：
