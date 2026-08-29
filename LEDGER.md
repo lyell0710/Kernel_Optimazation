@@ -85,6 +85,66 @@
 - ~~待重采~~ **已完成**（EXP-K09《向量化修复后的扇区账复采》）：`fused-norm` 六份及 rope/activation/w8a8 共 23 份已于 `6f320f2` 重采。前后对照见 EXP-K09 §5.1——L1TEX 降幅精确 4.00×，DRAM 读仍为 2.000×S 算法下界。
 - ~~待修~~ **已完成**（`bc18547`）：`rope` v3/v4、`activation` v2/v3、`w8a8` quant.v2 与 dequant 六处向量化载体已全部替换为 union 定义，SASS 判据全部转正。
 
+## 下次开采集机时的直接开跑清单（2026-08-29 停机前固化）
+
+> 采集主机是**唯一有 NCU 计数器权限**的环境（环境详情与重建步骤见 `ENV.md` 的「采集主机」节）。
+> 停机后即失去计数器能力，故把「开机就能跑」所需的一切固化在此，不留在对话里。
+
+### A. 唯一需要计数器的未尽事项：v5 采集（解锁三条红线）
+
+`gemm`/`fa2` 的 **v5 = mma PTX + ldmatrix + smem swizzle** 由主力机先实现，
+实现后必须回采集机采数，才能解锁：「swizzle 能消除该瓶颈」、
+FA2「达到 sdpa/Triton 水平」、FA2 28%（后两条已由 EXP-K09 §5.18 同 harness 实测，但 v5 会改变结论）。
+
+**判据与要采的指标（照抄即可，均已在本环境验证可采）**：
+
+| 目的 | 指标全名 | v4 现值（对照基线） |
+|---|---|---|
+| smem 相关 stall | `smsp__warp_issue_stalled_short_scoreboard_per_warp_active.pct` | FA2 v4 **50.13%** |
+| 全局访存 stall | `smsp__warp_issue_stalled_long_scoreboard_per_warp_active.pct` | FA2 v4 **0.31%** |
+| barrier stall | `smsp__warp_issue_stalled_barrier_per_warp_active.pct` | FA2 v4 13.86% |
+| shared 读 bank conflict | `l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum` | FA2 v4 **578,478,080** |
+| shared 写 bank conflict | `l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum` | FA2 v4 76,702,763 |
+| 归一化分母（冲突率用） | `l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum` | — |
+| Tensor 管线利用率 | `sm__pipe_tensor_cycles_active.avg.pct_of_peak_sustained_active` | FA2 v4 **10.30%**；gemm v4 38.08%（cuBLAS 49.02%） |
+
+口径：FA2 取 grid `(64,32,1)`（S=4096 协议点）；gemm 取 4096³ 单一 grid。基线出处 EXP-K07 §5.1/§5.4。
+
+**解锁条件**：v5 的 `bank_conflicts_..._op_ld` 与 `short_scoreboard` 较 v4 **显著下降**，
+且端到端有正收益 —— 二者缺一，「swizzle 能消除该瓶颈」仍只能是推断。
+（EXP-K07 只证明了瓶颈**在** smem，没证明 swizzle 是**解法**。）
+
+### B. 不需要计数器、随时可做的未尽事项
+
+| # | 事项 | 性质 |
+|---|---|---|
+| 7 | GEMM 85.6%(CUDA 13.2) vs 77.9%(12.8) 定权威工具链 | **决策，不用测**，待拍板 |
+| 9 | 三个融合算子 autotune（仅 rope 扫过 BLOCK×num_warps，最优与在用差 0.6%） | 低收益，可不做 |
+| 13 | sglang-prefix-lab 双副本 router 矩阵 S02–S07 | **需 ≥2 卡**，采集机是单卡，只能主力机做 |
+| 14 | LLM_Quantization EXP-004/005 | 需该仓与模型权重 |
+| — | EXP-K04「L2 区间 CUB 快 33.3%」改 12.1%、HBM「差 0.7%」改「贴平」 | 数据已备（EXP-K09 §6.20），待主力机落地 |
+| — | `figures/02_fa2_wmma_ladder.png` 重绘 | 需主力机字体环境 |
+
+### C. 采集时必踩的坑（本轮实测，照做可省数小时）
+
+1. **`dram__bytes_read.sum` 不在 `--section SpeedOfLight` 里**。用 `--section` 采不到它，
+   而取数脚本若对缺失列回退成 0，会把「列不存在」输出成「实读 0 MB」——**本轮就这样制造过一条假证据**
+   （EXP-K09 §5.8 的证据订正）。要它就用 `--metrics dram__bytes_read.sum` 显式指定。
+2. **raw CSV 第 1 行是单位行**（`Mbyte` / `us`），第 2 行起才是数据；且**值已按该单位换算**，
+   不要再乘 1e6。解析时跳过第 1 行并读取单位列。
+3. **各算子 derived CSV 的列布局互不相同**。取数前必须
+   `grep -v '^#' <f> | head -1 | tr ',' '\n' | cat -n` 验表头，
+   照搬别的算子的列号会把 pct 读成耗时、speedup 读成带宽。
+4. **分管线指标命名不统一**：Tensor 是 `sm__pipe_tensor_cycles_active`，
+   而 FMA/ALU 是 `sm__inst_executed_pipe_fma` / `_alu`——按前者的模式 grep 后两者会误判为「没采到」。
+5. **空报告拦截**已修复（EXP-K09 §7.1），并有回归测试
+   `bash scripts/test_ncu_empty_report_guard.sh`——改动 `ncu_profile_lib.inc.sh` 后务必跑一次。
+6. **四个 C++ bench 不读 `BENCH_OUT`**（softmax/gemv/int8-quantize/cuda-reduce），
+   CSV 路径写死为相对路径：在算子目录下跑会**覆写权威数据**，在别处跑则静默失败还谎报成功
+   （EXP-K09 §6.11，未修）。跑它们一律用沙箱 cwd。
+7. 硬 gate `git status --porcelain -- '*/project-proof/data/'` 的 `*/` **捕获不到仓库根下**的
+   `project-proof/data/`；建议改 `'*project-proof/data/'`。
+
 ## 内部约定(工作流,对齐 /root/standards CORE 七条铁律)
 
 1. bench 只写 UTC 前缀新文件到各 `project-proof/data/`（`BENCH_OUT` 控制，首行 provenance），永不覆盖已有文件；profiler 环境的时延数字永不进 benchmark 表。
@@ -104,3 +164,10 @@
   取回:`git show 13fdaa3:<路径> > <目标>`。
 - `cuda-reduce/profiling/ncu/` 下 5 份仍为 4070 代(新脚本不写该路径)。
 - 逐份出处以 `artifacts/ncu_for_mac/manifest.csv` 的 gpu/sm_count/ncu_ver/created 列为准。
+
+- **2026-08-29 第二代（本轮，共 76 份）**：全部由 **RTX 4090 / CUDA 12.8.93 / ncu 2025.1.1.0 /
+  driver 570.153.02** 采集，环境详情见 `ENV.md` 的「采集主机」节。覆盖十个算子
+  （gemm 6 / flash-attn 6 / softmax 11 / gemv 9 / int8-quantize 6 / cuda-reduce 10 /
+  fused-norm 6 / rope 5 / activation 5 / w8a8 7，另含 `reduce_cub_profile` 与
+  `gemv_*_l2resident_profile` 等专项）。**该机已停机——这批报告不可再生**，
+  重采需按 `ENV.md` 重建采集主机。
