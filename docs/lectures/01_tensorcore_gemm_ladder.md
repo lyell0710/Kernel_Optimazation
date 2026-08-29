@@ -532,7 +532,7 @@ __global__ void gemm_v0_kernel(const half* A, const half* B, half* C,
 
 **关键行**：两个 `__syncthreads` 各防一条竞态，方向相反：第一个防「读到没装完的」（跨线程 RAW），第二个防「快线程下一轮覆盖时慢线程还在读上一轮」(WAR)。
 
-**硬件语义**：内层两条 smem 读走的是两条不同的 bank 路径。`As[threadIdx.y][k]`：同一个 warp 里 `threadIdx.y` 只取 2 个值（见 4.1 的线性化），`k` 是循环变量对全 warp 相同 ⇒ **一个 warp 只访问 2 个 smem 地址**，命中 Best Practices §10.2.3.1 描述的广播路径（"When multiple threads in a warp address the same shared memory location， resulting in a broadcast ... coalesced into a single multicast"）。`Bs[k][threadIdx.x]`：`threadIdx.x` 连续 16 个 half = 32 B，跨 8 个 bank，无冲突。**所以 v1 的 smem 访问是干净的**——这一点很重要：它排除了「v1 慢是因为 bank conflict」这个假设，把病因唯一地留给了 §3.1.4 的指令路径账。
+**硬件语义**：内层两条 smem 读走的是两条不同的 bank 路径。`As[threadIdx.y][k]`：同一个 warp 里 `threadIdx.y` 只取 2 个值（见 4.1 的线性化），`k` 是循环变量对全 warp 相同 ⇒ **一个 warp 只访问 2 个 smem 地址**，命中 Best Practices §10.2.3.1 描述的广播路径（"When multiple threads in a warp address the same shared memory location， resulting in a broadcast ... coalesced into a single multicast"）。`Bs[k][threadIdx.x]`：`threadIdx.x` 连续 16 个 half = 32 B，跨 8 个 bank，无冲突。**所以 v1 的 smem 访问是干净的**——这一点很重要：它排除了「v1 慢是因为 bank conflict」这个假设，把病因唯一地留给了 §3.1.4 的指令路径账。〔**bank conflict 作用域注**：本段的「warp」措辞在 half（2 B/lane）访问下精确成立——bank conflict 的判定作用域是 **phase** 而非 warp，phase 大小随每线程访问宽度拆：4 B→32 线程一 phase、8 B→2×16、16 B→4×8（课程课件 lesson21 作者的更正）。本段每 lane 只访 2 B，不触发 phase 拆分，故「一个 warp 只访问 2 个地址」与「无冲突」两句话都对；但若换成本仓大量使用的 16 B float4 访存，作用域就拆成 4×8，此时必须按 phase 而非 warp 论证。〕
 
 **改错会怎样**：删第二个 barrier，错误只在个别调度时序下出现，是典型的「偶发错一位」难查 bug；这套 RAW/WAR 注释纪律贯穿后面所有版本。实测只 +25%（§3.1.4 的账），但它把「访存问题」与「算力问题」拆成两个独立变量，是控制变量设计，不是失败。
 
