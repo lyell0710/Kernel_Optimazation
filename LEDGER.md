@@ -28,7 +28,7 @@
 | reduce 带宽百分比 | 只在 HBM-bound(1.07 GB)区间可报；L2 常驻区间报带宽即错 | EXP-K04 §4.1 / §6（等效带宽超理论峰值） |
 | GEMM「超过/追平 cuBLAS」 | 禁用（现状 85.6%，**该数字对工具链敏感**） | 85.6% = 主力机 CUDA 13.2（EXP-K02 §8）；采集主机 CUDA 12.8 同协议测得 **77.9%**（EXP-K07《NCU 计数器闭环》 §5.2/§6.2）。两者是不同工具链下的两个数，对外引用维持 85.6% 并知悉该敏感性。Triton 版数字不得挪用 |
 | FA2「达到 sdpa/Triton 水平」 | 禁用（现状 28%） | v5 mma PTX 路线；EXP-K03 §8 |
-| 一切 vs Triton/sdpa 数字 | 跨 harness，推断级，引用必须带此限定 | 同 harness 复测；EXP-K03 §7 |
+| 一切 vs Triton/sdpa 数字 | **GEMM/FA2 已解锁为实测级**（EXP-K05 三个融合算子本就同 harness） | 同 harness 复测已完成（EXP-K09 §5.18）：`scripts/same_harness/` 把本仓 CUDA kernel 绑成 torch 扩展，与姊妹仓在**同一进程、同一份数据、同一计时协议**下对照。FA2 = Triton 的 **28.1%**（3 次 28.1/28.2/28.1），与跨 harness 的 28% 吻合到小数点后一位；vs sdpa **23.4%**（3 次全同）。GEMM = Triton 的 **78.6%~81.0%**（报区间，cuda 侧 std 较大） |
 | softmax 的任何「vs cuBLAS」对比句 | 作废（对照物系自写 kernel，cuBLAS 无 softmax API） | 无解锁；EXP-K01 §5 勘误 |
 | gemv 单轮领先幅度 | 作废，现行口径 = 快 **34.1%**（3 轮；可写「34%，轮间 34–38%」）——**必须带 L2 常驻限定，见下一行** | EXP-K04 §4.3 取代 EXP-K01 §7 的 37.8%；差异为 cuBLAS 侧轮间波动 |
 | gemv「快 34.1%」的适用区间 | **只在 L2 常驻区间可报**；HBM 区间两者持平（1.4%） | 工作集 4096×2048 fp32 = 33.55 MB < 72 MB L2；bench 等效带宽 2633 GB/s = DRAM 峰值 2.6 倍，关掉 cache flush 后 `dram__bytes_read` = **0**。与 reduce 同型判据（超峰值即落 L2）。**真实大形状复核**：8192×4096 = 134.2 MB 下 3 轮仅 **+2.4%**，轮间 −2.9%~+7.6% **跨越零点**，std 与领先同量级 → 该 regime 下应报「持平」而非「快 2.4%」。EXP-K09 §5.8/§6.7/§5.15/§6.15 |
