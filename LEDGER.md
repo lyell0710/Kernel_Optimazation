@@ -32,6 +32,9 @@
 | softmax 的任何「vs cuBLAS」对比句 | 作废（对照物系自写 kernel，cuBLAS 无 softmax API） | 无解锁；EXP-K01 §5 勘误 |
 | gemv 单轮领先幅度 | 作废，现行口径 = 快 **34.1%**（3 轮；可写「34%，轮间 34–38%」）——**必须带 L2 常驻限定，见下一行** | EXP-K04 §4.3 取代 EXP-K01 §7 的 37.8%；差异为 cuBLAS 侧轮间波动 |
 | gemv「快 34.1%」的适用区间 | **只在 L2 常驻区间可报**；HBM 区间两者持平（1.4%） | 工作集 4096×2048 fp32 = 33.55 MB < 72 MB L2；bench 等效带宽 2633 GB/s = DRAM 峰值 2.6 倍，关掉 cache flush 后 `dram__bytes_read` = **0**。与 reduce 同型判据（超峰值即落 L2）。EXP-K09 §5.8/§6.7 |
+| softmax「快 cuDNN 6.7% / 慢 9.9%」的适用区间 | **只在 L2 常驻区间可报** | 1024×1024 fp32 工作集 8.39 MB < 72 MB L2；等效带宽 1079.9 GB/s 超峰值，cuDNN 侧 1011.8 GB/s 同样超；热 cache 下 `dram__bytes_read` = **0**，flush 后读满 4.21 MB。EXP-K09 §5.9 |
+| `int8-quantize` v4 的 5.57 μs | **L2 常驻区间数字**，需标注 | 1024² 工作集 5.24 MB < 72 MB L2。**注意它未触发「超峰值」判据**（941.3 GB/s < 1008），却实测 DRAM 读为 0——判据漏报的实例，见下一行。EXP-K09 §5.9 |
+| **L2 常驻区间的判定方法**（取代原先单一的「超峰值」说法） | 三层，强度递增 | ①**必要**：工作集 < L2 容量（4090 = 72 MB）；②**充分**：等效带宽 > DRAM 物理峰值（满足即落 L2，**不满足不能排除**）；③**决定性**：`ncu --cache-control all` 与 `none` 的 `dram__bytes_read.sum` 对比。①命中而②未命中时**必须上③**——`int8-quantize` 即此情形。EXP-K09 §6.8 |
 | reduce「≈1193× 端到端」 | 仅限带「4070 Laptop」定语引用（授权例外） | 4090 端到端口径未测；见下节授权例外条 |
 |「smem 是 GEMM/FA2 剩余差距的瓶颈」 | **可用**（4090 计数器实测） | EXP-K07《NCU 计数器闭环》 §5.4/§6.5：FA2 v4 `short_scoreboard` 50.13% vs `long_scoreboard` 0.31%；gemm v4 smem 冲突波前占 77.1%（放大 4.37×），cuBLAS 2.4%（1.02×） |
 |「swizzle 能消除该瓶颈」 | **推断，不可当实测说** | 本轮只证明瓶颈在 smem，未验证 swizzle 是解法；解锁条件 = 实现 v5（mma PTX + ldmatrix + swizzle）并同协议复测 |
