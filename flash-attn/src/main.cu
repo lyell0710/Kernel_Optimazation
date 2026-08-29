@@ -83,7 +83,8 @@ int main() {
     struct { const char* name; Fn fn; } vs[] = {
         {"v0_warp_row", fa2_v0}, {"v1_smem_tile", fa2_v1}, {"v2_wmma", fa2_v2},
         {"v3_8warp", fa2_v3},
-        {"v4_overlap", fa2_v4}};
+        {"v4_overlap", fa2_v4},
+        {"v5_mmaPTX", fa2_v5}};
 
     // ---- 正确性 gate ----
     // 形状族刻意打散:非 causal 分支、GQA 三种比、S 覆盖 512..2048;

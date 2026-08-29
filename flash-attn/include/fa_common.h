@@ -24,6 +24,8 @@ void fa2_v2(const half* Q, const half* K, const half* V, half* O,
             int B, int Hq, int Hkv, int S, bool causal);
 void fa2_v4(const half* Q, const half* K, const half* V, half* O,
             int B, int Hq, int Hkv, int S, bool causal);
+void fa2_v5(const half* Q, const half* K, const half* V, half* O,
+            int B, int Hq, int Hkv, int S, bool causal);
 void fa2_v3(const half* Q, const half* K, const half* V, half* O,
             int B, int Hq, int Hkv, int S, bool causal);
 // fp32 精算参考(非在线,两遍法,正确性 gate 专用,慢)

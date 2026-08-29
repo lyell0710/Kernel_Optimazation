@@ -9,4 +9,4 @@ set(CMAKE_CUDA_FLAGS_RELEASE "${CMAKE_CUDA_FLAGS_RELEASE} -O3")
 set(CMAKE_CUDA_ARCHITECTURES 89)
 include_directories(include)
 add_executable(fa2_bench
-    src/main.cu src/fa2_v0.cu src/fa2_v1.cu src/fa2_v2.cu src/fa2_v3.cu src/fa2_v4.cu src/ref_naive.cu)
+    src/main.cu src/fa2_v0.cu src/fa2_v1.cu src/fa2_v2.cu src/fa2_v3.cu src/fa2_v4.cu src/fa2_v5.cu src/ref_naive.cu)

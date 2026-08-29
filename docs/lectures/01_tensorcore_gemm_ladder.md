@@ -27,7 +27,7 @@
   - [4.5 v3:异步装载器与调度骨架(gemm/src/gemm_v3.cu:31-44、59-69)](#45-v3异步装载器与调度骨架gemmsrcgemm_v3cu31-4459-69)
   - [4.6 v4 主循环:全部要素合流(gemm/src/gemm_v4.cu:66-91)](#46-v4-主循环全部要素合流gemmsrcgemm_v4cu66-91)
   - [4.7 对照物:真 cuBLAS 与行主序技巧(gemm/src/gemm_cublas.cu:14-22)](#47-对照物真-cublas-与行主序技巧gemmsrcgemm_cublascu14-22)
-  - [4.8 bench harness:口径是怎么被一行行钉死的(gemm/src/main.cu:96-124)](#48-bench-harness口径是怎么被一行行钉死的gemmsrcmaincu96-124)
+  - [4.8 bench harness:口径是怎么被一行行钉死的(gemm/src/main.cu:97-125)](#48-bench-harness口径是怎么被一行行钉死的gemmsrcmaincu97-125)
 - [5 实验数据怎么读](#5-实验数据怎么读)
   - [5.1 轴与口径](#51-轴与口径)
   - [5.2 三笔自洽性核对](#52-三笔自洽性核对)
@@ -126,7 +126,7 @@ $$\text{Attainable GFLOPS/s} = \min\big(\text{Peak Floating-Point Performance},\
 按 roofline 三步做判定（口径与 docs/talk/whiteboard_card_roofline.md 一致）：
 
 1. 算术强度 I = FLOPs / 必需字节。4096³ fp16 GEMM：
-   - FLOPs = 2·M·N·K = 2·4096³ ≈ 1.374×10¹¹。**为什么是 2 而不是 1**：每个输出元素累加 K 次，每次一乘一加，记 2 FLOP；这是 BLAS 与 NVIDIA 文档的通行口径（Matrix Multiplication Background User's Guide §1），本仓 bench 的公式与之一致（gemm/src/main.cu：92 的 `2.0 * M * N * K`）。换口径（只记乘法）会让所有 TFLOPS 数字腰斩，跨仓比较必须先对齐这一点。
+   - FLOPs = 2·M·N·K = 2·4096³ ≈ 1.374×10¹¹。**为什么是 2 而不是 1**：每个输出元素累加 K 次，每次一乘一加，记 2 FLOP；这是 BLAS 与 NVIDIA 文档的通行口径（Matrix Multiplication Background User's Guide §1），本仓 bench 的公式与之一致（gemm/src/main.cu：93 的 `2.0 * M * N * K`）。换口径（只记乘法）会让所有 TFLOPS 数字腰斩，跨仓比较必须先对齐这一点。
    - 必需字节 = (M·K + K·N + M·N)·2B = 3·4096²·2B ≈ 100.7 MB。**为什么这是「必需」**：A、B 至少各要从 DRAM 读一次，C 至少要写一次；任何实现都不可能比这更少。这是一个**下界**，所以由它算出的 I 是**上界**——用上界去论证「compute-bound」是安全的方向（若上界都低于 I\*，那才是 memory-bound；这里上界远高于 I\*，结论只会更强）。
    - I ≈ 1.374×10¹¹ / 1.007×10⁸ ≈ 1365 FLOP/B。
 2. 平衡点 I\* = 峰值算力 / 峰值带宽 = 165.2 TFLOPS / 1.008 TB/s ≈ 164 FLOP/B(§1.2)。作为对照，NVIDIA 的 GEMM 指南给 V100 上 FP16 with FP32 accumulate 的 FLOPS：B 是 138.9(Matrix Multiplication Background User's Guide §2 Math And Memory Bounds)——同一个量，不同世代，数值同一量级，说明 164 这个数不是本仓算错了。
@@ -418,7 +418,7 @@ v4 的 8 个 accumulator fragment 互不依赖（`acc[i][j]` 两两独立），8
 | wmma instruction shape | 16×16×16 | 硬件约束 | CUDA PG §10.24.6 Element Types and Matrix Sizes 允许的 shape 组合之一；fp16×fp16→fp32 的三种 shape 中最方阵的一个 |
 | `wait_prior` 参数 | 1（末轮 0） | 理论 | §3.3.5 通式 N = D − 1，D = 2 |
 | accumulator 精度 | fp32 | 理论上界 | §7 Q6 的舍入分析；换 fp16 accumulator 峰值翻倍（330.3 TFLOPS）但 4096 长点积的误差不可接受 |
-| bench iters | 50(v0/v1 取 max(3, 5)) | 实测扫描 | v1 的轮间 std ≈ 0(21.114±0.047),5 iters 统计已够（EXP-K02 §7）;main.cu:105-107 |
+| bench iters | 50(v0/v1 取 max(3, 5)) | 实测扫描 | v1 的轮间 std ≈ 0(21.114±0.047),5 iters 统计已够（EXP-K02 §7）;main.cu:106-108 |
 | 抽样步长 | 997 / 97 | 理论 | 素数，避开 2 的幂结构的周期性采偏（main.cu：63-65） |
 | 正确性阈值 | 2e-2 | 理论上界 | fp16 存储的合理界；实测 max_rel_err = 7.58e-04，余量 26 倍（EXP-K02 §5） |
 
@@ -705,7 +705,7 @@ void gemm_cublas(const half* A, const half* B, half* C, int M, int N, int K) {
 
 **改错会怎样**：不交换 A/B 直接按行主序传参，数值全错；compute type 用 16F，对照口径与版本梯（fp32 累加）不再可比。
 
-### 4.8 bench harness:口径是怎么被一行行钉死的(gemm/src/main.cu:96-124)
+### 4.8 bench harness:口径是怎么被一行行钉死的(gemm/src/main.cu:97-125)
 
 ```cuda
     for (auto& v : vs) {
@@ -768,7 +768,7 @@ void gemm_cublas(const half* A, const half* B, half* C, int M, int N, int K) {
 
 ### 5.1 轴与口径
 
-TFLOPS = 2·M·N·K / 时延（gemm/src/main.cu：92，「每输出 1 mul + 1 add」口径）；「3 轮」指三次独立进程运行（raw 各一份，UTC 前缀落盘），±号后是**轮间** std；每轮的时延本身已是 3 次预热后 50 iters 的均值（v0/v1 慢版取 iters/10、下限 3，main.cu：105-107）。README 图 1(figures/01_gemm_tc_ladder.png)就是此表的水平条形图：横轴 TFLOPS，误差条 = 轮间 std，条上百分比 = vs cuBLAS；标题即结论句，脚注给源数据文件——图不携带表之外的信息，存疑时回 CSV。
+TFLOPS = 2·M·N·K / 时延（gemm/src/main.cu：93，「每输出 1 mul + 1 add」口径）；「3 轮」指三次独立进程运行（raw 各一份，UTC 前缀落盘），±号后是**轮间** std；每轮的时延本身已是 3 次预热后 50 iters 的均值（v0/v1 慢版取 iters/10、下限 3，main.cu：106-108）。README 图 1(figures/01_gemm_tc_ladder.png)就是此表的水平条形图：横轴 TFLOPS，误差条 = 轮间 std，条上百分比 = vs cuBLAS；标题即结论句，脚注给源数据文件——图不携带表之外的信息，存疑时回 CSV。
 
 **「vs cuBLAS」这一列的分母是同一 harness 内的 cuBLAS，不是别处的 cuBLAS。** 这一点在跨仓比较时是关键：自家 Triton 版所在 harness 下 cuBLAS = 159.8 TFLOPS，本 harness 下 155.4，两者差约 3%(EXP-K02 §6)。所以「85.6%」这个比值只在本 harness 内有意义，跨 harness 的比较必须带这个限定。
 
@@ -790,7 +790,7 @@ TFLOPS = 2·M·N·K / 时延（gemm/src/main.cu：92，「每输出 1 mul + 1 ad
 
 ### 5.4 这个实验设计防了哪些坑
 
-预热 3 次驱走冷时钟与懒初始化（main.cu：109）；计时用单 event 对包住整段循环再除 iters(main.cu：110-113)，避免逐次 event 记录本身的开销偏置；固定 srand(42) 使所有版本所有轮吃同一输入（main.cu：53-55），否则「版本差异」里混着「输入差异」；正确性以 cuBLAS 输出为参考，相对误差分母用全局 absmax 而非逐元素（近零元素上逐元素相对误差无意义地爆炸），抽样步长取素数 997/97 避开 2 的幂结构的周期性采偏（main.cu：63-71、100-103）；结果只写 BENCH_OUT 指定的新文件、首行 provenance(main.cu：77-90)，历史数据永不覆盖。慢版少跑的合法性有数据支撑：v1 的 std≈0(21.114±0.047)，5 iters 统计已够（EXP-K02 §7）。
+预热 3 次驱走冷时钟与懒初始化（main.cu：110）；计时用单 event 对包住整段循环再除 iters(main.cu：111-114)，避免逐次 event 记录本身的开销偏置；固定 srand(42) 使所有版本所有轮吃同一输入（main.cu：53-55），否则「版本差异」里混着「输入差异」；正确性以 cuBLAS 输出为参考，相对误差分母用全局 absmax 而非逐元素（近零元素上逐元素相对误差无意义地爆炸），抽样步长取素数 997/97 避开 2 的幂结构的周期性采偏（main.cu：63-71、101-104）；结果只写 BENCH_OUT 指定的新文件、首行 provenance(main.cu：78-91)，历史数据永不覆盖。慢版少跑的合法性有数据支撑：v1 的 std≈0(21.114±0.047)，5 iters 统计已够（EXP-K02 §7）。
 
 **它没防住什么，也要说**：(a) 没有做 shape 扫描，所有结论只属于 4096³ 这一个点；(b) 没有控制 GPU 时钟（无锁频），轮间 std 里混着时钟波动——v0 的 ±0.472 ms(1.8%)明显大于其余版本（0.2%–0.7%），但 v0 本身慢，绝对波动占比小，不影响排序；(c) NCU 计数器在本容器不可用（EXP-K01 §7），所以所有「bank conflict」「stall reason」层面的解释都只能是账面推断。
 
