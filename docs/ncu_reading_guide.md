@@ -48,7 +48,7 @@ Details 页每个 metric 旁会显示相对增减。**只看变化的那几个�
 | warp shuffle 取代 shared memory 归约 | `fused-norm` v1→v2 | Memory Workload Analysis 的 Shared Memory 流量；Warp State Statistics 的 Barrier stall | smem 流量降、barrier 等待降（`__syncthreads` 变少） |
 | 向量化访存（16 B / `float4`） | `fused-norm` v3、`rope` v3、`activation` v2、`softmax` v3 | `l1tex__average_t_sectors_per_request_pipe_lsu_mem_global_op_ld` | 每 request 的 sector 数下降＝同样字节用更少 request 搬完 |
 | 计算换访存（免查表，`__sincosf` 现算） | `rope` v3→v4 | SOL 的 SM Throughput 与 DRAM Throughput 一升一降 | 表不再读，SFU 压力换来 DRAM 压力下降 |
-| 寄存器缓存消掉第二次读 | `fused-norm` v3→v4 | `lts__t_sectors_op_read` 与 `dram__sectors_read` 的比值 | 见 §4 第 1 条——这条目前是推断，不是实测 |
+| 寄存器缓存消掉第二次读 | `fused-norm` v3→v4 | `lts__t_sectors_srcunit_tex_op_read.sum` 与 `dram__sectors_read.sum` 的比值(只在 `--page raw` 里) | 见 §4 第 1 条——这条目前是推断，不是实测 |
 | Tensor Core（wmma） | `gemm` v1→v2、`flash-attn` v1→v2 | Compute Workload Analysis 的 Tensor pipe 利用率；SOL 的 SM Throughput | Tensor pipe 从零起来，FMA pipe 让位 |
 | cp.async 双缓冲 | `gemm` v2→v3、`flash-attn` v3→v4 | Warp State Statistics 的 `long_scoreboard` stall 占比 | 延迟被藏住＝等访存的 stall 占比下降。这是"双缓冲有没有生效"的直接证据 |
 | 大 tile / 增加 warp 数 | `gemm` v3→v4、`flash-attn` v2→v3 | Occupancy（Theoretical vs Achieved）；Launch Statistics 的 Waves Per SM、Registers Per Thread、Static Shared Memory | 关注两处：寄存器或 smem 是否把理论占用率压下去；Waves Per SM 是否为接近整数（非整数＝波量化，尾波拖尾） |
@@ -84,7 +84,7 @@ NCU 里两版的单 kernel 指标几乎一样，收益只在 nsys 时间线上�
 
 | # | 待验证的推断 | 判据 | 出处 |
 |---|---|---|---|
-| 1 | `fused-norm` v4 的"第二次读被 L2 接住、从未出片" | `lts__t_sectors_op_read` 与 `dram__sectors_read` 的比值 | `docs/lectures/03_memory_bound_fusion.md` §3.3 与「边界四」 |
+| 1 | `fused-norm` v4 的"第二次读被缓存接住、从未出片"**（已实测闭合：接住它的是 L1）** | `lts__t_sectors_srcunit_tex_op_read.sum` 与 `dram__sectors_read.sum` 的比值(只在 `--page raw` 里) | `docs/lectures/03_memory_bound_fusion.md` §3.3 与「边界四」 |
 | 2 | "swizzle / smem 往返是 FA2 剩余差距的主因" | Memory Workload Analysis 的 shared bank conflict 计数 | `LEDGER.md`、`docs/lectures/02_wmma_tax_fa2.md` |
 | 3 | `w8a8`"反量化本可融进 GEMM epilogue" | 反量化 kernel 的 DRAM 读写字节 vs GEMM epilogue 可省的量 | `records/EXP-K06_w8a8_linear.md` |
 | 4 | `rope` v2 在 HBM 区间比 v1 慢 1.1% 的成因 | 指令数与 stall 分解（分支与下标运算的代价） | `records/EXP-K05_llm_fused_elementwise.md` |

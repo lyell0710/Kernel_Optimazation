@@ -123,6 +123,7 @@ decode 区间（T=1，grid 只有 1 个 block）：手写 6.1-7.4 us，triton 18
 - v0 的字节账在 kernel 注释里按指令计数写作 6/元素，实测反推 HBM 层面更接近 5； 注释中的静态计数与 §6 的实测结论并存，读代码时以本记录为准。
 - rope v2 在 HBM 区间比 v1 慢 1.1%(770.6 vs 779.0)，超出 3 轮 std(±3.7)。合并 launch 引入了一次分支与更复杂的下标运算，在带宽已饱和时表现为轻微净亏。未进一步剖（NCU 在本容器无计数器权限，ERR_NVGPUCTRPERM）。
 - 三个算子均未做 NCU 采集（同上权限限制），"第二次读被缓存接住"是从带宽上界反推的**推断**，非计数器实测；若日后拿到 NCU 权限，应以 `lts__t_sectors_op_read` 与 `dram__sectors_read` 的比值直接验证。
+  - **勘注（2026-08-29）**：上行指标名有误。`lts__t_sectors_op_read` 不存在于 NCU 的指标集；正确名为 `lts__t_sectors_srcunit_tex_op_read.sum`，且它与 `dram__sectors_read.sum` 都只在 `--page raw` 中导出，`--page details` 读不到。该错名同期扩散至 LEDGER 与 docs/lectures/03，均已改正。
 - Triton 版 rope 采用 q/k 分两次 launch（合并版的双路 masked load 会实际发出两倍访存，实测有效带宽恰好减半）。手写 CUDA v2 的"q/k 合并 launch"这一级在 Triton 侧无对应实现，decode 区间的跨语言比较因此含一次额外 launch 的偏差。
 
 ## 8 下游影响
