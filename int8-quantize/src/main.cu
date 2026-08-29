@@ -30,8 +30,11 @@ void build_per_channel_scales(const std::vector<float>& input, std::vector<float
 
 int main()
 {
-    const int channels = 1024;
-    const int hw = 1024;
+    // 默认 1024x1024 fp32 输入 = 4.19 MB,远小于 72 MB L2(EXP-K09 §5.9 实测热 cache 下 DRAM 读为 0)
+    int channels = 1024;
+    int hw = 1024;
+    if (const char* e = std::getenv("Q8_CHANNELS")) channels = std::atoi(e);
+    if (const char* e = std::getenv("Q8_HW")) hw = std::atoi(e);
     const int total = channels * hw;
     int kBenchmarkIters = 100;
     if (const char* env_iters = std::getenv("BENCH_ITERS"))

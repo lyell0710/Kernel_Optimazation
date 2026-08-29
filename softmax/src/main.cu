@@ -202,8 +202,11 @@ int main()
     //   - 第二轮 tid=0..118 走 float4 (c=1024..1496+3=1499<1500)，tid=119 起跨过 cols
     //   - 部分线程跑 1 轮、部分跑 2 轮 → warp 内出现负载不均，可能 divergence
     // 用于评估 v4 在"真正破"的尺寸下相对 v4.3 / cuBLAS 的退化幅度。
-    const int rows_mis = 1024;
-    const int cols_mis = 1500;
+    // 非对齐形状,同样可覆盖(与主形状的 SOFTMAX_ROWS/COLS 独立)
+    int rows_mis = 1024;
+    int cols_mis = 1500;
+    if (const char* e = std::getenv("SOFTMAX_MIS_ROWS")) rows_mis = std::atoi(e);
+    if (const char* e = std::getenv("SOFTMAX_MIS_COLS")) cols_mis = std::atoi(e);
     const int n_mis = rows_mis * cols_mis;
     std::vector<float> h_in_mis(n_mis, 0.0f);
     std::vector<float> h_ref_mis(n_mis, 0.0f);

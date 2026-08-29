@@ -32,8 +32,13 @@ bool check_close(const std::vector<float>& a, const std::vector<float>& b, float
 
 int main()
 {
-    const int rows = 4096;
-    const int cols = 2048;
+    // 默认 4096x2048 fp32 = 33.55 MB,常驻 4090 的 72 MB L2。
+    // 可由 GEMV_ROWS/GEMV_COLS 覆盖,用于 L2 常驻 vs HBM-bound 的区间对照
+    // ——形状写死正是"对外数字未标注 regime"的根源(EXP-K09 §5.8/§6.8)。
+    int rows = 4096;
+    int cols = 2048;
+    if (const char* e = std::getenv("GEMV_ROWS")) rows = std::atoi(e);
+    if (const char* e = std::getenv("GEMV_COLS")) cols = std::atoi(e);
     int kBenchmarkIters = 100;
     if (const char* env_iters = std::getenv("BENCH_ITERS"))
     {
