@@ -10,6 +10,11 @@
 | [EXP-K04](records/EXP-K04_standard_library_baselines.md) | 标准库基准补齐与两区间重测（CUB / cuDNN 入场） | standard_library_baselines | 2026-08-25 | 完成 | 补 CUB/cuDNN 同算子基准并两区间重测：HBM-bound v7 93.9% 峰值（与 CUB 差 0.7%）、L2 区间 CUB 快 33.3%、softmax vs cuDNN +6.7%/−9.9%、gemv 34.1%；**作废** "reduce 反超 cuBLAS 24.5%" 的对外用法 → records/data/exp_k04_* |
 | [EXP-K02](records/EXP-K02_cuda_gemm_tc_ladder.md) | CUDA Tensor Core GEMM 版本梯（v0→v4,vs 真 cuBLAS） | cuda_gemm_tc_ladder | 2026-08-24 | 完成 | Tensor Core GEMM v0→v4:133.1±0.97 TFLOPS = 真 cuBLAS 85.6%（4096³,3 轮）→ gemm/project-proof/data/ |
 | [EXP-K03](records/EXP-K03_cuda_fa2_ladder.md) | CUDA FA2 forward 简化版版本梯（v0→v4，量化 wmma 架构税） | cuda_fa2_ladder | 2026-08-24 | 完成 | CUDA FA2 v0→v4:34.8±0.12 TFLOPS = 自家 Triton 28%（跨 harness）,wmma 架构税量化 → flash-attn/project-proof/data/ |
+| [EXP-K05](records/EXP-K05_llm_fused_elementwise.md) | LLM 融合逐元素算子三件套：fused_add_rmsnorm / rope / silu_and_mul | llm_fused_elementwise | 2026-08-26 | 完成 | 三个算子 HBM 区间贴到理论峰值 **89.9%–92.0%**，手写 CUDA / Triton / torch.compile 打平；分水岭是融不融合（pytorch_eager 仅 17.5%–55.1%）→ 各 project-proof/data/ |
+| [EXP-K06](records/EXP-K06_w8a8_linear.md) | W8A8 linear 完整链路：per-token 量化 + INT8 GEMM/GEMV + 融合反量化 | w8a8_linear | 2026-08-26 | 完成 | prefill **2.161x** bf16 cuBLAS；decode 的 M=1 库路径不可用，自写 dp4a GEMV **1.972x**；多一次 `.contiguous()` 则整链路跌到 **0.734x**（3.6 倍单步差距全来自 stride）；quant 仅占链路 **1.8%** → w8a8/project-proof/data/ |
+| [EXP-K07](records/EXP-K07_ncu_counter_closure.md) | 采集主机 NCU 计数器闭环：分管线利用率、GEMM 对照口径核验、fused-norm L2 命题 | ncu_counter_closure | 2026-08-29 | 完成 | 闭合 `ncu_reading_guide` §4 第 1/2/5 条：GEMM v4/cuBLAS 吞吐比 **77.9%** 与 Tensor 管线利用率比 **77.7%** 在 0.2pp 内重合；fused-norm「第二次读不出片」证实且机制精确到 **L1**（命中 83.2%，L2 仅 0.94%）；FA2 v4 `short_scoreboard` **50.13%** vs `long_scoreboard` **0.31%** → 各 profiling/ncu/ |
+| [EXP-K08](records/EXP-K08_bf16x8_vectorization_fix.md) | BF16x8 向量化未兑现的定位与修复：从 alignas 到 union | bf16x8_vectorization_fix | 2026-08-29 | 完成 | `alignas(16)` 只保证地址对齐、不强制向量化访存，四算子声称的 16 B 向量化在 SASS 层从未兑现；修复后全部兑现但收益分化：L2 区间 fused-norm v3 **+21.3%** / v4 **+41.8%**、rope v3 **+15.0%** / v4 **+48.6%**，而 activation 与 w8a8 **≈0** → 各 data/*vec-after* |
+| [EXP-K09](records/EXP-K09_post_vectorization_sector_ledger.md) | 向量化修复后的扇区账复采：守卫验证与「浪费比」判据 | post_vectorization_sector_ledger | 2026-08-29 | 完成 | L1TEX 请求降幅精确 **4.00×**（=16 B/4 B），DRAM 读仍为 **2.000×S** 算法下界（守卫通过）；修复前 v3/v4 的 16/12×S **比标量版 4×S 还差**，即当时是负优化；「兑现≠收益」获得浪费比判据（§6.3）→ 各 profiling/ncu/ |
 
 ## 措辞红线表(对外文本逐条对照)
 
@@ -29,6 +34,7 @@
 | reduce「≈1193× 端到端」 | 仅限带「4070 Laptop」定语引用（授权例外） | 4090 端到端口径未测；见下节授权例外条 |
 |「smem 是 GEMM/FA2 剩余差距的瓶颈」 | **可用**（4090 计数器实测） | EXP-K07《NCU 计数器闭环》 §5.4/§6.5：FA2 v4 `short_scoreboard` 50.13% vs `long_scoreboard` 0.31%；gemm v4 smem 冲突波前占 77.1%（放大 4.37×），cuBLAS 2.4%（1.02×） |
 |「swizzle 能消除该瓶颈」 | **推断，不可当实测说** | 本轮只证明瓶颈在 smem，未验证 swizzle 是解法；解锁条件 = 实现 v5（mma PTX + ldmatrix + swizzle）并同协议复测 |
+| 「向量化兑现 ⇒ 有收益」 | **禁用该推论** | 判据单向:浪费比(L1TEX/DRAM)≈1 → **必然无** sector 层面收益;>1 → **不保证**有收益。反例:`w8a8` quant_v2 浪费比 2.00× 仍 ≈0 收益(量化只占链路 1.8%,属 Amdahl 上限)。三者缺一不可:`LDG.E.128>0` 只证兑现,浪费比证有无可回收量,端到端占比证值不值。EXP-K09 §6.3 |
 
 ## 勘误 / 审计留痕(横幅集中处;原文与史料见 records/、docs/archive/、LAB_JOURNAL)
 
@@ -43,15 +49,15 @@
 
 - 2026-08-26 EXP-K05《LLM 融合逐元素算子三件套》新增待办：①fused-norm「第二次读被缓存接住」目前是从带宽上界反推的推断，待 NCU 权限后以 lts__t_sectors_srcunit_tex_op_read.sum / dram__sectors_read.sum 比值实测(须 --page raw)； ②rope v2 在 HBM 区间比 v1 慢 1.1%（超 3 轮 std）未剖；③三个算子均未做 autotune， 仅 rope 单独扫过 BLOCK×num_warps（最优与所用配置差 0.6%）。
   - **①已销账**（EXP-K07《NCU 计数器闭环》 §6.3）：DRAM 读扇区恒为 2.000 倍算法下界、L1 命中率 83.2%、L2 读命中率 0.94%——接住第二次读的是 **L1 不是 L2**，机制层级已更正。
-  - **③相关**：向量化本身此前从未兑现，根因与修复见 EXP-K08《BF16x8 向量化未兑现的定位与修复》；`rope`/`activation`/`w8a8` 同一根因**尚未修**。
+  - **③相关**：向量化本身此前从未兑现，根因与修复见 EXP-K08《BF16x8 向量化未兑现的定位与修复》；`rope`/`activation`/`w8a8` 同一根因已于 `bc18547` 一并修复（EXP-K08）。
 - 本仓补测 backlog 已清零（EXP-K01 §7 于 2026-08-24 晚闭环）。
 - 可选技能票：gemm/fa2 v5 = mma PTX + ldmatrix + smem swizzle（EXP-K02 §7、EXP-K03 §8；不阻塞）。
 - ~~待 NCU 计数器权限：「swizzle / smem 往返」类推断转实测~~ —— **已完成**（EXP-K07《NCU 计数器闭环》）。在一台计数器可用的 4090 虚机上补齐七个算子共 51 份报告；`docs/ncu_reading_guide.md` §4 五条推断闭合四条（第 1、2、5 条实测闭合，第 4 条由 nsys 解决，第 3 条判为伪需求——融合版不存在，NCU 也证不了）。
 - 待同 harness 复测：一切 vs Triton/sdpa 数字（现为跨 harness 推断级）。
 - 开放问题：cuBLAS gemv 对照单轮慢 35% 未剖（冷启动/时钟态候选，EXP-K01 §7）。
 - 开放问题（EXP-K07《NCU 计数器闭环》 §6.6b）：gemv「v3 快 cuBLAS 34.1%」在计数器环境**未被覆盖**——profiler 钉住的 size 上仅快 1.4%，且 DRAM 读字节差 0.01%、occupancy 近两倍只换 1.4%。既非证实也非证伪；要剖清须让 profiler 钉在 bench 报出该数字的同一 size 上。原 occupancy 候选已撤回。
-- 待重采（EXP-K08《BF16x8 向量化未兑现的定位与修复》 §7）：`fused-norm` 现有 6 份 `.ncu-rep` 采自向量化修复**之前**，L1/L2/DRAM 字节账必然已变，需在计数器可用的机器上重采才能对照。
-- 待修（EXP-K08《BF16x8 向量化未兑现的定位与修复》 §7）：`rope` v3/v4、`activation` v2/v3、`w8a8` quant.v2 与 dequant 的向量化载体仍是旧定义（六处，位置见 `docs/sass_evidence_ladder.md` §6.1），同一根因、同一修法。
+- ~~待重采~~ **已完成**（EXP-K09《向量化修复后的扇区账复采》）：`fused-norm` 六份及 rope/activation/w8a8 共 23 份已于 `6f320f2` 重采。前后对照见 EXP-K09 §5.1——L1TEX 降幅精确 4.00×，DRAM 读仍为 2.000×S 算法下界。
+- ~~待修~~ **已完成**（`bc18547`）：`rope` v3/v4、`activation` v2/v3、`w8a8` quant.v2 与 dequant 六处向量化载体已全部替换为 union 定义，SASS 判据全部转正。
 
 ## 内部约定(工作流,对齐 /root/standards CORE 七条铁律)
 
