@@ -90,8 +90,19 @@ void reduce_v7(const float* data, float* output, int n)
         return;
     }
 
+    // 计时口径:SM 数是设备常量,缓存一次即可。原实现每次调用都查 ——
+    // cudaGetDeviceProperties 是重量级 runtime 调用(实测在 driver 570 上单次
+    // 可达毫秒级),它落在计时区内会把被测的规约本身完全淹没。
+    // 只有 v6/v7 有这个调用,v1-v5 没有 —— 这正是"v6/v7 慢一个数量级"的元凶。
+    static int s_sm_count = 0;
+    if (s_sm_count == 0)
+    {
+        cudaDeviceProp prop{};
+        cudaGetDeviceProperties(&prop, 0);
+        s_sm_count = prop.multiProcessorCount;
+    }
     cudaDeviceProp prop{};
-    cudaGetDeviceProperties(&prop, 0);
+    prop.multiProcessorCount = s_sm_count;
 
     int grid1 = (n + kBlockSize - 1) / kBlockSize;
     int max_grid = prop.multiProcessorCount * 8;
@@ -108,8 +119,18 @@ void reduce_v7(const float* data, float* output, int n)
         grid1 = 1;
     }
 
-    float* d_partial = nullptr;
-    cudaMalloc(&d_partial, grid1 * sizeof(float));
+    // 计时口径:中间数组一次性分配、按容量复用,与 CUB 对照臂一致
+    // (reduce_cub.cu 的 g_temp 同款做法)。原实现每次调用都 cudaMalloc + cudaFree,
+    // 落在计时区内 —— 测的是分配器而不是规约本身。
+    static float* s_partial = nullptr;
+    static int    s_cap = 0;
+    if (grid1 > s_cap)
+    {
+        if (s_partial) { cudaFree(s_partial); s_partial = nullptr; }
+        cudaMalloc(&s_partial, grid1 * sizeof(float));
+        s_cap = grid1;
+    }
+    float* d_partial = s_partial;
 
     reduce_v7_kernel<kBlockSize><<<grid1, kBlockSize>>>(data, d_partial, n);
 
@@ -122,5 +143,5 @@ void reduce_v7(const float* data, float* output, int n)
         cudaMemcpy(output, d_partial, sizeof(float), cudaMemcpyDeviceToDevice);
     }
 
-    cudaFree(d_partial);
+    // (不再 cudaFree:缓冲区跨调用复用,见上方计时口径说明)
 }
