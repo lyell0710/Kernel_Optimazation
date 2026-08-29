@@ -83,10 +83,23 @@ ncu_run_one() {
   # ncu 对「regex 没匹配到任何 kernel」是静默的:退出码 0,但报告里一个实例都没有。
   # 这种空报告下游用不了,而且会掩盖 regex 写错(gemm 的 cuBLAS 臂就是待验证的猜测)。
   # 但它**不该中止整轮采集**——机器在计费,不能因为一个臂没抓到就丢掉其余几十份。
+  # 两种"没抓到"的形态,都必须放过而不是中止:
+  #   (a) ncu 压根不生成报告文件(实测:regex 无匹配时就是这样,只在 stdout 打
+  #       "No kernels were profiled");
+  #   (b) 文件生成了但零实例。
+  # 原实现只处理了 (b),且用 `ncu -i` 去读一个不存在的文件——它把错误打在
+  # **stdout** 上,于是 `| sed 1d | wc -l` 得到 1 而非 0,判空恒不成立;
+  # 更糟的是 `set -euo pipefail` 的 pipefail 让该管道的非零退出码直接中止整轮,
+  # 后面所有臂全部丢失(w8a8 因此只采到 2/8)。故先判文件、再判内容,并给管道兜底。
+  if [ ! -s "${out_prefix}.ncu-rep" ]; then
+    echo "  !! 空报告(regex 未匹配到任何 kernel,ncu 未生成文件),已跳过:$kernel"
+    rm -f "${out_prefix}.ncu-rep"
+    return 0
+  fi
   local n
-  n=$(ncu -i "${out_prefix}.ncu-rep" --page details --csv 2>/dev/null | sed '1d' | wc -l)
+  n=$(ncu -i "${out_prefix}.ncu-rep" --page details --csv 2>/dev/null | sed '1d' | wc -l || true)
   if [ "${n:-0}" -eq 0 ]; then
-    echo "  !! 空报告(regex 未匹配到任何 kernel),已删除并跳过:$kernel"
+    echo "  !! 空报告(零实例),已删除并跳过:$kernel"
     rm -f "${out_prefix}.ncu-rep"
     return 0
   fi
