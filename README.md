@@ -161,6 +161,7 @@ bash scripts/run_ncu_all.sh
 | [EXP-K06 W8A8 linear 完整链路：per-token 量化 + INT8 GEMM/GEMV + 融合反量化](records/EXP-K06_w8a8_linear.md) | W8A8 linear 完整链路（per-token 量化 + INT8 GEMM + 融合反量化 + decode 用的 dp4a GEMV）：prefill 2.161x、decode HBM 区间 1.972x；三步分解显示量化只占 1.8%、反量化占 26.7%；权重布局值 3.6 倍；M>16 是库路径的硬约束。 |
 | [EXP-K07 NCU 计数器闭环：采集主机上的十算子计数器采集与推断转实测](records/EXP-K07_ncu_counter_closure.md) | 在一台计数器可用的 RTX 4090 上补齐六个 C++ 算子的计数器采集：wmma 的 Tensor 管线利用率由编译期证据升为运行时实测（v1 0% → v2 25.71%）；gemm v4 与 cuBLAS 的性能比 77.9% 与两者 Tensor 管线利用率之比77.7% 吻合；fused-norm「第二次读不出片」证实（DRAM 读恒为算法下界 2.000×，L1 命中率 83%）；补采 CUB 同算子对照。 |
 | [EXP-K08 BF16x8 向量化未兑现的定位与修复：从 alignas 到 union](records/EXP-K08_bf16x8_vectorization_fix.md) | 三个逐元素算子声称的 16 B 向量化在 SASS 层从未兑现——`alignas(16)` 只保证地址对齐、不强制向量化访存。修复 fused-norm 后 L2 常驻区间v3 +21.3%、v4 +41.8%（同环境 A/B，未改动的 v1/v2 对照组 +0.1%）；v4 由慢于 v3 反转为快于 v3。 |
+| [EXP-K09 向量化修复后的扇区账复采：守卫验证与「浪费比」判据](records/EXP-K09_post_vectorization_sector_ledger.md) | 向量化兑现后复采扇区账:L1TEX 请求精确降为原来的 1/4(16→4、12→3 ×S,正好等于 16 B/4 B),而 DRAM 读纹丝不动停在 2.000×S 的算法下界——可知修复前那版「向量化」在兑现之前是负优化,只是被 L1 全部吸收才在 DRAM 侧看不出来;并由 L1TEX/DRAM 浪费比给出「向量化有没有收益」的单向必要条件。 |
 
 ## 测量方法
 

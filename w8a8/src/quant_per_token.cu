@@ -55,6 +55,10 @@ void quant_per_token_v0(int8_t* q, float* scale, const __nv_bfloat16* x,
 }
 
 // ---- v1:单 kernel,warp shuffle 归约 ---------------------------------------
+// 注意:v1 被编译,但 bench.py 从不调用它(只跑 quant_v0 / quant_v2)。保留它是因为版本梯
+// 少了中间态就分不清两次独立收益 —— 标量两遍 v0 → 融合一遍 v1 → 向量化 v2。不给 bench
+// 补 v1 臂的取舍(quant 只占整条 W8A8 链路 1.8%),见 EXP-K09《向量化修复后的扇区账复采》
+// §7.2;采集侧的同一决定写在 project-proof/scripts/profile_ncu.sh 的 PROFILE_TARGETS 处。
 __global__ void v1_kernel(int8_t* __restrict__ q, float* __restrict__ scale,
                           const __nv_bfloat16* __restrict__ x, int H) {
     __shared__ float smem[32];

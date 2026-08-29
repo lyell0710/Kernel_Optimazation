@@ -1022,7 +1022,7 @@ CUB 的三个 kernel 各有 8 条 `LDG.E.128`(向量化加载)、30 条 `SHFL`
 |---|---|---|
 | `rope/README.md:18,40,56`、`src/rope_v3.cu:10-11` | 「16 B 向量化」;「16 B/lane 后一次请求 32×16=512 B = 4 个满事务」 | `LDG.E.128` = 0;是 4 次请求不是一次。「512 B 足迹 / 4 个满事务」对,「一次请求」错 |
 | `activation/README.md:15,36`、`src/silu_and_mul_v2.cu` | 「16 B 向量化」;同上的「一次请求」措辞 | `LDG.E.128`/`STG.E.128` = 0,实际 8 条 32 位 `LDG.E.CONSTANT` + 4 条 32 位 `STG.E` |
-| `w8a8/src/quant_per_token.cu:81` | 「v2 向量化(读 16 B bf16,写 8 B int8)」 | 写侧真兑现(`STG.E.U8` → `STG.E.64`);读侧 `LDG.E.128` = 0,拆成 4 条 32 位 |
+| `w8a8/src/quant_per_token.cu:85` | 「v2 向量化(读 16 B bf16,写 8 B int8)」 | 写侧真兑现(`STG.E.U8` → `STG.E.64`);读侧 `LDG.E.128` = 0,拆成 4 条 32 位 |
 | `w8a8/src/dequant.cu:44` | 「列方向向量化」的 `BF16x4` 8 B 写 | 读侧兑现(`LDG.128` 0→2);写侧拆成 2 条 32 位 `STG.E`,没有 `STG.E.64` |
 
 四处的成因是同一个,而且不是通常猜的那个:不是 SROA、也不是对齐证不出来。
@@ -1043,7 +1043,7 @@ v4<1> 是 3 + 2(§5.3);带宽侧的同环境 A/B 与归因见 `EXP-K08`。
 **这个修法可以直接套用到上表四处**,因为它们用的是逐字相同的载体定义:
 `rope/src/rope_v3.cu:18`、`rope/src/rope_v4.cu:30`、
 `activation/src/silu_and_mul_v2.cu:16`、`activation/src/silu_and_mul_v3.cu:20`、
-`w8a8/src/quant_per_token.cu:82` 五处都是 `struct alignas(16) BF16x8 { __nv_bfloat162 h[4]; };`
+`w8a8/src/quant_per_token.cu:86` 五处都是 `struct alignas(16) BF16x8 { __nv_bfloat162 h[4]; };`
 (注意 `rope` v4 与 `activation` v3 也带这个载体,改的时候不要漏);
 `w8a8/src/dequant.cu:46` 的 `alignas(8) BF16x4 { __nv_bfloat162 h[2]; }` 是 8 B 版,
 同理换 `union{float2 raw;}`。但这六个文件到现在一行未改,

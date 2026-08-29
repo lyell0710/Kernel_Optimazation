@@ -103,7 +103,7 @@ $q = \mathrm{round}(x / s)$，$s = \max|x| / 127$，零点固定为 0。
 
 ### 3.1 量化这一步:结构与 RMSNorm 同型
 
-per-token 量化要先求出整行的 $\max|x|$，再逐元素缩放—— 这是一次行归约加一次逐元素变换，与 RMSNorm 完全同型（`w8a8/src/quant_per_token.cu:64-72`）：
+per-token 量化要先求出整行的 $\max|x|$，再逐元素缩放—— 这是一次行归约加一次逐元素变换，与 RMSNorm 完全同型（`w8a8/src/quant_per_token.cu:68-76`）：
 
 ```cuda
     float m = 0.f;
