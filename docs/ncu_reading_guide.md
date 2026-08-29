@@ -77,18 +77,27 @@ NCU 是单 kernel 内部的显微镜，下面这些它一概答不了，别在�
 `rope` v1→v2 的"合并 launch"就是典型：它减少的是 launch 次数，
 NCU 里两版的单 kernel 指标几乎一样，收益只在 nsys 时间线上看得见。
 
-## 4 权限恢复后优先转实测的既有推断
+## 4 推断转实测的进度
 
-下列结论目前都标着"推断"，因为采不到计数器。它们各自有一个明确的判据，
-拿到报告后应当逐条转成实测，并回写对应文件。
+原有五条挂着"推断"的命题，已闭合四条。计数器数据来自一台权限可用的 RTX 4090
+（CUDA 12.8），见 `records/EXP-K07_ncu_counter_closure.md`。
 
-| # | 待验证的推断 | 判据 | 出处 |
+| # | 命题 | 状态 | 依据 |
 |---|---|---|---|
-| 1 | `fused-norm` v4 的"第二次读被缓存接住、从未出片"**（已实测闭合：接住它的是 L1）** | `lts__t_sectors_srcunit_tex_op_read.sum` 与 `dram__sectors_read.sum` 的比值(只在 `--page raw` 里) | `docs/lectures/03_memory_bound_fusion.md` §3.3 与「边界四」 |
-| 2 | "swizzle / smem 往返是 FA2 剩余差距的主因" | Memory Workload Analysis 的 shared bank conflict 计数 | `LEDGER.md`、`docs/lectures/02_wmma_tax_fa2.md` |
-| 3 | `w8a8`"反量化本可融进 GEMM epilogue" | 反量化 kernel 的 DRAM 读写字节 vs GEMM epilogue 可省的量 | `records/EXP-K06_w8a8_linear.md` |
-| 4 | `rope` v2 在 HBM 区间比 v1 慢 1.1% 的成因 | 指令数与 stall 分解（分支与下标运算的代价） | `records/EXP-K05_llm_fused_elementwise.md` |
-| 5 | EXP-K01 因权限缺失未能复采的 stall / occupancy 细节 | 直接重采即可 | `records/EXP-K01_4090_rebench.md` |
+| 1 | `fused-norm` v4 的"第二次读从未出片" | **实测闭合，且机制层级已更正** | DRAM 读扇区恒为 2.000 倍算法下界；L1 命中率 83.2%、L2 读命中率 0.94% —— **接住它的是 L1，不是 L2**（EXP-K07 §6.3） |
+| 2 | "smem 是 GEMM/FA2 剩余差距的瓶颈" | **实测闭合** | FA2 v4 `short_scoreboard` 50.13% vs `long_scoreboard` 0.31%；gemm v4 smem 冲突波前占 77.1%（放大 4.37×），cuBLAS 2.4%（EXP-K07 §5.4/§6.5） |
+| 2b | "swizzle 能消除该瓶颈" | **仍是推断** | 本轮只证明瓶颈在 smem，未验证 swizzle 是解法。解锁 = 实现 v5 并同协议复测 |
+| 3 | `w8a8`"反量化本可融进 GEMM epilogue" | **判为伪需求** | 融合版本不存在，NCU 也无从比较；代价（26.7%）本就是实测 |
+| 4 | `rope` v2 在 HBM 区间比 v1 慢 1.1% 的成因 | **已由 nsys 解决** | v1 对 q/k 各调一次 = 248 次 launch，v2 合并为 124 次；HBM 区间的 −1.1% 与 decode 区间的 +30% 是同一改动的两面 |
+| 5 | EXP-K01 因权限缺失未能复采的 stall / occupancy | **实测补齐** | 四算子全量（EXP-K07 §5.5/§6.6） |
+
+**一条计数器答不了的**：`sm__inst_executed_pipe_tensor` 等分管线利用率不在任何 section 的
+CLI 导出里，必须显式 `--metrics`（已加入 `scripts/ncu_metrics.inc.sh`）。
+它回答的是"wmma 运行时占了多少"，而"wmma 有没有被编出来"由 SASS 的 `HMMA` 计数回答——
+两者互补，见 `docs/sass_evidence_ladder.md`。
+
+**待重采**：`fused-norm` 现有报告采自向量化修复之前（EXP-K08），修复后 L1/L2/DRAM
+的账必然已变，需重采才能对照。
 
 跨仓还有三条同源的（拿到权限后一并做，判据相同）：
 

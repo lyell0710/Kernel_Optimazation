@@ -210,7 +210,7 @@ rope 的朴素写法是"一线程一元素"：线程 $g$ 负责输出的第 $g$ 
 
 cos/sin 表要占带宽。能不能不查表，直接在 kernel 里算？
 
-$\theta = (\text{pos\_offset} + \text{token}) \times \text{inv\_freq}[i]$，然后一次 `__sincosf` 同时出 sin 和 cos。`inv_freq` 只有 $D/2$ 个 float（head_dim=128 时 256 字节），常驻 L1。字节账从 3 降到 2(`rope/src/rope_v4.cu:64-74`)：
+$\theta = (\text{pos\_offset} + \text{token}) \times \text{inv\_freq}[i]$，然后一次 `__sincosf` 同时出 sin 和 cos。`inv_freq` 只有 $D/2$ 个 float（head_dim=128 时 256 字节），常驻 L1。字节账从 3 降到 2(`rope/src/rope_v4.cu:73-83`)：
 
 ```cuda
         for (int j = 0; j < 4; ++j) {

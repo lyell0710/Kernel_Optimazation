@@ -21,13 +21,14 @@
 | softmax「快 cuBLAS X%」 | 永久禁用（对照系自写） | cuDNN 对照见 EXP-K04 §4.2 |
 | softmax「快 cuDNN 6.7%」 | 可用，但必须连非对齐形状慢 9.9% 一起报 | EXP-K04 §4.2（两形状同表） |
 | reduce 带宽百分比 | 只在 HBM-bound(1.07 GB)区间可报；L2 常驻区间报带宽即错 | EXP-K04 §4.1 / §6（等效带宽超理论峰值） |
-| GEMM「超过/追平 cuBLAS」 | 禁用（现状 85.6%） | Triton 版数字不得挪用；EXP-K02 §8 |
+| GEMM「超过/追平 cuBLAS」 | 禁用（现状 85.6%，**该数字对工具链敏感**） | 85.6% = 主力机 CUDA 13.2（EXP-K02 §8）；采集主机 CUDA 12.8 同协议测得 **77.9%**（EXP-K07《NCU 计数器闭环》 §5.2/§6.2）。两者是不同工具链下的两个数，对外引用维持 85.6% 并知悉该敏感性。Triton 版数字不得挪用 |
 | FA2「达到 sdpa/Triton 水平」 | 禁用（现状 28%） | v5 mma PTX 路线；EXP-K03 §8 |
 | 一切 vs Triton/sdpa 数字 | 跨 harness，推断级，引用必须带此限定 | 同 harness 复测；EXP-K03 §7 |
 | softmax 的任何「vs cuBLAS」对比句 | 作废（对照物系自写 kernel，cuBLAS 无 softmax API） | 无解锁；EXP-K01 §5 勘误 |
 | gemv 单轮领先幅度 | 作废，现行口径 = 快 **34.1%**（3 轮；可写「34%，轮间 34–38%」） | EXP-K04 §4.3 取代 EXP-K01 §7 的 37.8%；差异为 cuBLAS 侧轮间波动 |
 | reduce「≈1193× 端到端」 | 仅限带「4070 Laptop」定语引用（授权例外） | 4090 端到端口径未测；见下节授权例外条 |
-|「swizzle / smem 往返是剩余差距主因」 | 推断，不可当实测说 | NCU 计数器（容器内不可用，EXP-K01 §7） |
+|「smem 是 GEMM/FA2 剩余差距的瓶颈」 | **可用**（4090 计数器实测） | EXP-K07《NCU 计数器闭环》 §5.4/§6.5：FA2 v4 `short_scoreboard` 50.13% vs `long_scoreboard` 0.31%；gemm v4 smem 冲突波前占 77.1%（放大 4.37×），cuBLAS 2.4%（1.02×） |
+|「swizzle 能消除该瓶颈」 | **推断，不可当实测说** | 本轮只证明瓶颈在 smem，未验证 swizzle 是解法；解锁条件 = 实现 v5（mma PTX + ldmatrix + swizzle）并同协议复测 |
 
 ## 勘误 / 审计留痕(横幅集中处;原文与史料见 records/、docs/archive/、LAB_JOURNAL)
 
@@ -41,11 +42,16 @@
 ## 待办 / backlog(当前全部非阻塞)
 
 - 2026-08-26 EXP-K05《LLM 融合逐元素算子三件套》新增待办：①fused-norm「第二次读被缓存接住」目前是从带宽上界反推的推断，待 NCU 权限后以 lts__t_sectors_srcunit_tex_op_read.sum / dram__sectors_read.sum 比值实测(须 --page raw)； ②rope v2 在 HBM 区间比 v1 慢 1.1%（超 3 轮 std）未剖；③三个算子均未做 autotune， 仅 rope 单独扫过 BLOCK×num_warps（最优与所用配置差 0.6%）。
+  - **①已销账**（EXP-K07《NCU 计数器闭环》 §6.3）：DRAM 读扇区恒为 2.000 倍算法下界、L1 命中率 83.2%、L2 读命中率 0.94%——接住第二次读的是 **L1 不是 L2**，机制层级已更正。
+  - **③相关**：向量化本身此前从未兑现，根因与修复见 EXP-K08《BF16x8 向量化未兑现的定位与修复》；`rope`/`activation`/`w8a8` 同一根因**尚未修**。
 - 本仓补测 backlog 已清零（EXP-K01 §7 于 2026-08-24 晚闭环）。
 - 可选技能票：gemm/fa2 v5 = mma PTX + ldmatrix + smem swizzle（EXP-K02 §7、EXP-K03 §8；不阻塞）。
-- 待非容器环境/NCU 计数器权限（ERR_NVGPUCTRPERM）：「swizzle / smem 往返是剩余差距主因」类推断转实测。
+- ~~待 NCU 计数器权限：「swizzle / smem 往返」类推断转实测~~ —— **已完成**（EXP-K07《NCU 计数器闭环》）。在一台计数器可用的 4090 虚机上补齐七个算子共 51 份报告；`docs/ncu_reading_guide.md` §4 五条推断闭合四条（第 1、2、5 条实测闭合，第 4 条由 nsys 解决，第 3 条判为伪需求——融合版不存在，NCU 也证不了）。
 - 待同 harness 复测：一切 vs Triton/sdpa 数字（现为跨 harness 推断级）。
 - 开放问题：cuBLAS gemv 对照单轮慢 35% 未剖（冷启动/时钟态候选，EXP-K01 §7）。
+- 开放问题（EXP-K07《NCU 计数器闭环》 §6.6b）：gemv「v3 快 cuBLAS 34.1%」在计数器环境**未被覆盖**——profiler 钉住的 size 上仅快 1.4%，且 DRAM 读字节差 0.01%、occupancy 近两倍只换 1.4%。既非证实也非证伪；要剖清须让 profiler 钉在 bench 报出该数字的同一 size 上。原 occupancy 候选已撤回。
+- 待重采（EXP-K08《BF16x8 向量化未兑现的定位与修复》 §7）：`fused-norm` 现有 6 份 `.ncu-rep` 采自向量化修复**之前**，L1/L2/DRAM 字节账必然已变，需在计数器可用的机器上重采才能对照。
+- 待修（EXP-K08《BF16x8 向量化未兑现的定位与修复》 §7）：`rope` v3/v4、`activation` v2/v3、`w8a8` quant.v2 与 dequant 的向量化载体仍是旧定义（六处，位置见 `docs/sass_evidence_ladder.md` §6.1），同一根因、同一修法。
 
 ## 内部约定(工作流,对齐 /root/standards CORE 七条铁律)
 

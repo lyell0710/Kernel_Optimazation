@@ -17,7 +17,16 @@
 // ============================================================================
 #include "activation.h"
 
-struct alignas(16) BF16x8 { __nv_bfloat162 h[4]; };
+struct alignas(16) BF16x8 {
+    // `alignas(16)` 只保证地址对齐,**不强制向量化访存**:nvcc 按成员类型
+    // (__nv_bfloat162,4 B)逐个生成访存,编出来是 4 条 32 位 LDG 而非一条 LDG.E.128。
+    // union 给出 float4 视图 + 显式拷贝语义,让整体赋值走 raw 这条 128 位通路,
+    // 调用点无须改写。根因、验证与收益见 records/EXP-K08。
+    union { float4 raw; __nv_bfloat162 h[4]; };
+    __device__ __forceinline__ BF16x8() {}
+    __device__ __forceinline__ BF16x8(const BF16x8& o) { raw = o.raw; }
+    __device__ __forceinline__ BF16x8& operator=(const BF16x8& o) { raw = o.raw; return *this; }
+};
 
 __device__ __forceinline__ float silu(float x) {
     return x / (1.0f + __expf(-x));

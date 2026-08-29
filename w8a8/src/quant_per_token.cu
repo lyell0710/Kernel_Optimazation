@@ -79,7 +79,16 @@ void quant_per_token_v1(int8_t* q, float* scale, const __nv_bfloat16* x,
 }
 
 // ---- v2:向量化(读 16 B bf16,写 8 B int8)---------------------------------
-struct alignas(16) BF16x8 { __nv_bfloat162 h[4]; };
+struct alignas(16) BF16x8 {
+    // `alignas(16)` 只保证地址对齐,**不强制向量化访存**:nvcc 按成员类型
+    // (__nv_bfloat162,4 B)逐个生成访存,编出来是 4 条 32 位 LDG 而非一条 LDG.E.128。
+    // union 给出 float4 视图 + 显式拷贝语义,让整体赋值走 raw 这条 128 位通路,
+    // 调用点无须改写。根因、验证与收益见 records/EXP-K08。
+    union { float4 raw; __nv_bfloat162 h[4]; };
+    __device__ __forceinline__ BF16x8() {}
+    __device__ __forceinline__ BF16x8(const BF16x8& o) { raw = o.raw; }
+    __device__ __forceinline__ BF16x8& operator=(const BF16x8& o) { raw = o.raw; return *this; }
+};
 // 8 个 int8 = 8 字节,用 alignas(8) 让编译器发 64 位 store。
 // 读写宽度不对称(读 16 B / 写 8 B)是量化算子的固有形态:输出本来就窄一半。
 struct alignas(8) I8x8 { int8_t v[8]; };
