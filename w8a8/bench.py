@@ -39,10 +39,17 @@ def main():
     iters_env = int(os.environ.get("BENCH_ITERS", "0"))
     H = 4096
     # (标签, T, O, iters)。O=4096 对应 o_proj,O=12288 对应 gate/up_proj。
+    # 【测量效度】同 decode 段的账:4090 的 L2 是 72 MB,int8 权重是 bf16 的一半,
+    # 存在一个危险区间——同一个 O 下 int8 权重塞得进 L2 而 bf16 塞不进,
+    # 两条臂根本不在同一存储层级上比。H=4096 时:
+    #   O=12288 → int8 50 MB(L2 内) vs bf16 100 MB(HBM)  ← 对外报的 2.161x 正落在这里
+    #   O=32768 → int8 134 MB       vs bf16 268 MB       ← 两边都超 L2,可外推
+    # decode 段早已补了 O=32768,prefill 段一直没有;对外数字出自 prefill,故补齐。
     shapes = [("T512_O4096", 512, 4096, 200),
               ("T512_O12288", 512, 12288, 200),
               ("T2048_O12288", 2048, 12288, 100),
-              ("T8192_O12288", 8192, 12288, 50)]
+              ("T8192_O12288", 8192, 12288, 50),
+              ("T2048_O32768", 2048, 32768, 30)]
 
     f, out_path = open_csv("project-proof/data/benchmark_results.csv", HERE,
                            f"BENCH_ITERS={iters_env} python bench.py",
