@@ -10,7 +10,7 @@
 | v1 | K/V tile 进 smem | 5.5 | +11%（L2 已扛住广播读）|
 | v2 | wmma QK^T/PV + smem 往返 softmax | 24.4 | Tensor Core ×4.5 |
 | v3 | 8 warp 并行组织 | 32.5 | +33% |
-| v4 | half S/P + cp.async K 双缓冲/V 重叠 | **34.8** | 仅 +6.6% → 瓶颈在相位链 |
+| v4 | half S/P + cp.async K 双缓冲/V 重叠 | **34.8** | 仅 +7.1% → 瓶颈在相位链 |
 
 一句话读法：**wmma 做 GEMM 够到 cuBLAS 86%（EXP-K02《CUDA Tensor Core GEMM 版本梯》），做 FA2 只够到自家 Triton 版的 28%**——fragment 布局不透明逼出的 smem 往返吃掉融合优势， 这就是 FA2 官方实现要用 mma/CUTLASS 的定量理由。
 
@@ -26,5 +26,5 @@ BENCH_OUT=project-proof/data/$(date -u +%Y%m%dT%H%M)_fa2_proto_r1.csv ./build/fa
 | 红线 | 状态 | 解锁条件 |
 |---|---|---|
 |「CUDA FA2 达到 sdpa/Triton 水平」 | 禁用（28%）| v5 mma PTX 路线 |
-|「smem 往返是差距主因」 | 推断（v4 增量 6.6% 佐证）| NCU 计数器（容器不可用）|
+|「smem 往返是差距主因」 | 推断（v4 增量 7.1% 佐证）| NCU 计数器（容器不可用）|
 | vs Triton/sdpa 数字 | 跨 harness 推断级 | 同 harness 复测 |

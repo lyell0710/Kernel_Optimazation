@@ -100,7 +100,7 @@ rows = [r for r in rows if r["S"] == "4096"]
 name_map = {
     "v0_warp_row": "v0 warp-per-row", "v1_smem_tile": "v1 K/V 进 smem",
     "v2_wmma": "v2 wmma(×4.5)", "v3_8warp": "v3 8 warp(+33%)",
-    "v4_overlap": "v4 cp.async 重叠(仅 +6.6%)"}
+    "v4_overlap": "v4 cp.async 重叠(仅 +7.1%)"}
 order = ["v0_warp_row", "v1_smem_tile", "v2_wmma", "v3_8warp", "v4_overlap"]
 rows.sort(key=lambda r: order.index(r["version"]))
 labels = [name_map[r["version"]] for r in rows]
@@ -112,7 +112,7 @@ fig.patch.set_facecolor("white")
 style_ax(ax)
 hbar(ax, labels, means, stds, colors, lambda m, s: f"{m:.1f}±{s:.2f}")
 ax.set_xlabel("TFLOPS(B=1 Hq=32 Hkv=8 D=128 causal,S=4096)", fontsize=9)
-ax.set_title("FA2 用 wmma:访存全预取后仅 +6.6%——瓶颈在 smem 往返相位链,不在访存",
+ax.set_title("FA2 用 wmma:访存全预取后仅 +7.1%——瓶颈在 smem 往返相位链,不在访存",
              fontsize=11.5, pad=10)
 footnote(fig, "source: flash-attn/project-proof/data/derived_fa2_proto_stability.csv"
               "(S=4096 行)· RTX 4090 · 3 轮 mean±std · EXP-K03")

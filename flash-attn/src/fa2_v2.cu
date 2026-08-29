@@ -14,7 +14,7 @@
 // 约束:D=128,S % 64 == 0(bench 形状均满足;通用尾块见 v0/v1)。
 // 性能:5.635±0.017 ms = 24.4±0.06 TFLOPS,vs v1 x4.5 = FA2 梯最大台阶
 // (EXP-K03（CUDA FA2 forward 简化版版本梯）);资源:72 reg / 128 thr / 动态 smem 90.75KB → 1 block/SM,
-// 理论 occupancy 8.3%。v4 把 ① 全部预取重叠后仅 +6.6%(EXP-K03 §6)——
+// 理论 occupancy 8.3%。v4 把 ① 全部预取重叠后仅 +7.1%(EXP-K03 §6)——
 // 瓶颈是这条相位链本身:本文件就是「wmma 架构税」的实体。
 // 面试点:① softmax 为什么必须出 fragment(映射私有);② O 的 ×α 重缩放
 // 为什么同样做不进 fragment——α 按行,而 fragment 元素不知道自己属于哪一

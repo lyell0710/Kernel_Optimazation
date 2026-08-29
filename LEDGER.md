@@ -43,6 +43,18 @@
 - **reduce Laptop 旧代自相矛盾（2026-08-24 审计）**：旧 results(v7=1.665ms)与旧 stability(0.273ms)矛盾，"v6/v7 回退 → 4090 反转"叙事不可确证、不作主张；旧稿移 `docs/archive/2026-08-24_portfolio_laptop_era_sections.md`，其中数字禁止对外引用。**唯一授权例外**：端到端口径「347.6ms→0.291ms，~1193×，4070 Laptop」经 Resume/Final_Resume/DO_NOT_SEND.md 2026-08-24 处置记录核准用于简历，引用必须带 Laptop 定语。
 - **raw driver=13.3 误填勘误**：gemm/flash-attn raw 的 driver 字段误填 13.3（实为 610.57.04；13.3 是 cudaDriverGetVersion 报的 driver-API 版本）。raw 不可变：以两处 `data/manifest.txt` 勘误 + 修 bench 源码 provenance 生成，不重跑。
 - **stability 覆盖史**：EXP-K01 首版仅 cuda-reduce 有 3 轮 stability；softmax/gemv/int8-quantize 于 2026-08-24 晚以 `scripts/stability_rebench.sh` 补齐（9 份 UTC raw + 3 份 3rounds 聚合入 records/data/），台账自此全绿。
+- **两处对外数字勘误（2026-08-29，采集主机核对）**：
+  ① `activation` 融合一级 **1.675x → 1.678x**。指针文件 `derived_activation_stability.csv` 的 `hbm,v1`
+  三口径一致给 1.678（`speedup_vs_v0_mean`=1.67833、延迟比 1.11674/0.665349=1.6784、带宽比 907.733/540.867=1.6783）。
+  源头是 `records/EXP-K05` 的笔误，已扩散 10 处，本轮统一订正。结论方向不变（与 5/3=1.667 的吻合度由 0.48% 变 0.66%，同量级）。
+  ② FA2 v3→v4 增量 **+6.6% → +7.1%**。v3 32.5 → v4 34.8，正确口径 (34.8−32.5)/32.5 = 7.08%；
+  6.6% 是 2.3/34.8，**分母误用终值**。已扩散 20 处（含 `PORTFOLIO`、两处源码注释、绘图脚本），本轮统一订正。
+  同句的 v2→v3 **+33%** 经核为 33.2%，分母用法正确，不动。
+  两条均不改变任何结论方向（7.1% 依然是很小的增量，"排除访存假设"的论证不受影响）。
+  **连带待办**：`scripts/plot_readme_figures.py` 的图例与标题含该数字，
+  `figures/02_fa2_wmma_ladder.png` 需在主力机（`/root/venvs/kernel-opt`，有 uming 字体）重新生成——
+  采集主机字体与 matplotlib 版本不同，就地重绘会让所有 PNG 产生无意义的二进制差异。
+
 - **对外化改版**：PORTFOLIO 顶部勘误横幅与正文内嵌勘误注记、README 台账/红线表，已全部收入本文件；README/PORTFOLIO 正文只保留降级后的对外措辞。
 
 ## 待办 / backlog(当前全部非阻塞)

@@ -18,7 +18,7 @@
 | int8 quantize | v4 **5.57±0.03 µs**(1024² per-channel symmetric)；单 kernel 融合较 PyTorch eager 快 6.6x（4070 Laptop 口径，单轮） | [EXP-K01](records/EXP-K01_4090_rebench.md),`records/data/exp_k01_int8_quantize_3rounds.csv` |
 | fused_add_rmsnorm | HBM 区间（1.0 GB）达 HBM 理论峰值 **91.4%**(921.3 GB/s)，相对 PyTorch eager **5.23x**，相对 torch.compile 与 Triton **打平**（差 0.1%）;L2 常驻区间（64 MB）**3669.0 GB/s**，相对 torch.compile **3.25x** | [EXP-K05](records/EXP-K05_llm_fused_elementwise.md)、[EXP-K08](records/EXP-K08_bf16x8_vectorization_fix.md)，`fused-norm/project-proof/data/derived_fused-norm_vec-after_stability.csv` |
 | RoPE | HBM 区间（336 MB）v4 达 **90.0%**(906.8 GB/s)，相对 PyTorch eager **5.10x**；L2 常驻区间 **3425.1 GB/s**；同一处「q/k 合并 launch」优化在 HBM 区间 -1.2%、在 decode 区间 **1.39x**，收益方向相反 | [EXP-K05](records/EXP-K05_llm_fused_elementwise.md)、[EXP-K08](records/EXP-K08_bf16x8_vectorization_fix.md)，`rope/project-proof/data/derived_rope_vec-after_stability.csv` |
-| silu_and_mul | HBM 区间（600 MB）v3 达 **92.0%**(927.7 GB/s)；融合一级实测 **1.675x**，与字节账预测的 5/3=1.667x 精确吻合；L2 区间相对 torch.compile **10.6x** | [EXP-K05](records/EXP-K05_llm_fused_elementwise.md)，`activation/project-proof/data/derived_activation_stability.csv` |
+| silu_and_mul | HBM 区间（600 MB）v3 达 **92.0%**(927.7 GB/s)；融合一级实测 **1.678x**，与字节账预测的 5/3=1.667x 精确吻合；L2 区间相对 torch.compile **10.6x** | [EXP-K05](records/EXP-K05_llm_fused_elementwise.md)，`activation/project-proof/data/derived_activation_stability.csv` |
 | W8A8 linear（完整链路） | prefill **2.161x** bf16 cuBLAS(T=2048/H=4096/O=12288)；decode 的 M=1 库路径不可用，自写 dp4a GEMV 在 HBM 区间 **1.972x**；同一份权重多做一次 `.contiguous()` 则整条链路变成 **0.734x**—— 3.6 倍差距全部来自 stride | [EXP-K06](records/EXP-K06_w8a8_linear.md)，`w8a8/project-proof/data/derived_w8a8_stability.csv` |
 
 ![GEMM Tensor Core 版本梯](figures/01_gemm_tc_ladder.png)
@@ -27,7 +27,7 @@
 
 ![FA2 wmma 版本梯](figures/02_fa2_wmma_ladder.png)
 
-*图 2：同一套 wmma 工具箱，FA2 只到 34.8 TFLOPS；v4 把 K/V 访存全部预取重叠后仅 +6.6%，说明瓶颈在 shared memory 往返的相位链而非访存。（数据：`flash-attn/project-proof/data/derived_fa2_proto_stability.csv`；脚本：`scripts/plot_readme_figures.py`）*
+*图 2：同一套 wmma 工具箱，FA2 只到 34.8 TFLOPS；v4 把 K/V 访存全部预取重叠后仅 +7.1%，说明瓶颈在 shared memory 往返的相位链而非访存。（数据：`flash-attn/project-proof/data/derived_fa2_proto_stability.csv`；脚本：`scripts/plot_readme_figures.py`）*
 
 ![reduce 两区间对照](figures/03_reduce_two_regimes.png)
 
@@ -47,7 +47,7 @@
 
 **性能台阶来自指令世代，而非访存微调。** GEMM 版本梯上，smem tile 化（v0 至 v1）只带来 +25%，换用 Tensor Core 指令（v1 至 v2，wmma）一步 13.8x。compute-bound 算子里访存微调只是坡，指令世代才是台阶；反过来，memory-bound 的 reduce / gemv 里指令层面的微调收益趋近于 0。应先判定算子是 memory-bound 还是 compute-bound，再选优化手段——错配的优化在错误的方向上没有回报。
 
-**wmma 的架构税：同一套工具箱，GEMM 够到 86%，FA2 只够到 28%。** wmma accumulator fragment 的 lane 到元素的映射是编译器私有的，FA2 的行级 softmax(max/exp/rescale)无法直接在 fragment 上做——QK^T 结果必须 `store_matrix_sync` 落回 shared memory，再由标量段逐行重读，外加每个 tile 5 次 `__syncthreads` 的相位链。测量显示把 K/V 访存全部预取重叠后仅 +6.6%，说明瓶颈在这条相位链而非访存。越是依赖「融合免搬运」的算子，越需要 mma 级的寄存器控制——这正是官方 FA2 采用 CUTLASS/mma 而非 wmma 的定量理由。
+**wmma 的架构税：同一套工具箱，GEMM 够到 86%，FA2 只够到 28%。** wmma accumulator fragment 的 lane 到元素的映射是编译器私有的，FA2 的行级 softmax(max/exp/rescale)无法直接在 fragment 上做——QK^T 结果必须 `store_matrix_sync` 落回 shared memory，再由标量段逐行重读，外加每个 tile 5 次 `__syncthreads` 的相位链。测量显示把 K/V 访存全部预取重叠后仅 +7.1%，说明瓶颈在这条相位链而非访存。越是依赖「融合免搬运」的算子，越需要 mma 级的寄存器控制——这正是官方 FA2 采用 CUTLASS/mma 而非 wmma 的定量理由。
 
 **理论 occupancy 33% 为全梯最低，却是最快版本。** gemm v4 每线程 92 寄存器 x 256 线程 + 32KB smem，每 SM 只驻 2 个 block；但 4x2=8 个 accumulator fragment 常驻寄存器、一次 load 参与多次 `mma_sync`，Tensor Core 吞吐靠 fragment 级 ILP 与 smem 复用喂满，不靠线程数遮蔽延迟。occupancy 是手段，不是目标。
 

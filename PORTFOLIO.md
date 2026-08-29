@@ -200,9 +200,9 @@ NCU 关键数据：
 
 算子：Flash Attention 2 前向（在线 softmax，D=128，causal+GQA），协议对齐自家 Triton 版（B=1，Hq=32，Hkv=8，S=4096）。RTX 4090。
 
-结果（3 轮，[EXP-K03《CUDA FA2 forward 简化版版本梯》](records/EXP-K03_cuda_fa2_ladder.md)）:v0 warp-per-row 4.9,v1 smem tile 5.5（+11%,L2 已扛住广播读）,v2 wmma 24.4(4.5x),v3 8 warp 32.5(+33%),v4 cp.async 重叠 34.8 TFLOPS（仅 +6.6%）；全 shape 通过 2e-2 正确性 gate。
+结果（3 轮，[EXP-K03《CUDA FA2 forward 简化版版本梯》](records/EXP-K03_cuda_fa2_ladder.md)）:v0 warp-per-row 4.9,v1 smem tile 5.5（+11%,L2 已扛住广播读）,v2 wmma 24.4(4.5x),v3 8 warp 32.5(+33%),v4 cp.async 重叠 34.8 TFLOPS（仅 +7.1%）；全 shape 通过 2e-2 正确性 gate。
 
-GEMM 与 FA2 用同一套 wmma 工具箱得到相反结局——GEMM 够到 cuBLAS 的 86%，FA2 只够到自家 Triton 版（123 TFLOPS，跨 harness）的 28%。原因是结构性的：wmma accumulator fragment 的 lane 到元素的映射未定义，行级 softmax(max/exp/rescale)被迫经由 shared memory 往返，外加每 tile 5 次 `__syncthreads` 的相位链；v4 把 K/V 访存全部预取重叠后只涨 6.6%，说明瓶颈不在访存而在相位链。越是依赖「融合免搬运」的算子，越需要 mma 级寄存器控制——这就是官方 FA2 实现采用 CUTLASS/mma 而非 wmma 的定量理由。
+GEMM 与 FA2 用同一套 wmma 工具箱得到相反结局——GEMM 够到 cuBLAS 的 86%，FA2 只够到自家 Triton 版（123 TFLOPS，跨 harness）的 28%。原因是结构性的：wmma accumulator fragment 的 lane 到元素的映射未定义，行级 softmax(max/exp/rescale)被迫经由 shared memory 往返，外加每 tile 5 次 `__syncthreads` 的相位链；v4 把 K/V 访存全部预取重叠后只涨 7.1%，说明瓶颈不在访存而在相位链。越是依赖「融合免搬运」的算子，越需要 mma 级寄存器控制——这就是官方 FA2 实现采用 CUTLASS/mma 而非 wmma 的定量理由。
 
 ## 跨项目规律
 

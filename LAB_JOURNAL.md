@@ -27,7 +27,7 @@
 
 - **做了什么**：flash-attn/ 子项目，v0 warp-per-row 在线 softmax → v1 smem tile → v2 wmma（smem 往返 softmax）→ v3 8warp → v4 cp.async 重叠 + half S/P；协议对齐 triton-kernels test_fa2.py,3 轮 + ptxas;EXP-K03《CUDA FA2 forward 简化版版本梯》。
 - **为什么**：「CUDA 手写对应算子」映射第 ② 项；FA2 此前只有 Triton 证据。
-- **关键数字**：全 shape 过 2e-2 gate(GQA/causal)；S=4096 v4 34.8±0.12 TFLOPS = 自家 Triton 28%（跨 harness）；v4 仅 +6.6% → 瓶颈在 smem 往返相位链，不在访存——wmma fragment 布局不透明的结构性代价，mma 的定量论据。
+- **关键数字**：全 shape 过 2e-2 gate(GQA/causal)；S=4096 v4 34.8±0.12 TFLOPS = 自家 Triton 28%（跨 harness）；v4 仅 +7.1% → 瓶颈在 smem 往返相位链，不在访存——wmma fragment 布局不透明的结构性代价，mma 的定量论据。
 - **产物**：flash-attn/（5 kernel+参考+bench）、records/EXP-K03、 project-proof/data/（3 轮 raw + derived + ptxas）。
 - **下一步**：v5 mma PTX（与 gemm v5 同一张技能票，backlog）；commit+push。
 

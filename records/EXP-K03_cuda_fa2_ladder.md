@@ -54,7 +54,7 @@ S=4096 协议点（3 轮 mean±std）：
 | v1 smem tile | 25.113±0.071 | 5.5±0.00 | smem 仅 +11%（L2 已扛住广播读）|
 | v2 wmma | 5.635±0.017 | 24.4±0.06 | **Tensor Core ×4.5** |
 | v3 8warp | 4.229±0.012 | 32.5±0.10 | 并行组织 +33% |
-| v4 overlap | **3.949±0.012** | **34.8±0.12** | 预取+half S/P 仅 +6.6% |
+| v4 overlap | **3.949±0.012** | **34.8±0.12** | 预取+half S/P 仅 +7.1% |
 
 跨尺寸（v4）：S=512/1K/2K/4K = 19.9/26.7/31.8/34.9 TFLOPS（r1 单轮值， 小 S 被 wave quantization 与固定开销压低）。
 
@@ -62,7 +62,7 @@ S=4096 协议点（3 轮 mean±std）：
 
 ## 6. 分析与结论
 
-- **H2 前半成立**：v1→v2 ×4.5；v3 +33% 说明 v2 的 4 warp/128 线程吃不满 1 block/SM 的机器；**v4 仅 +6.6% 是本实验最有信息量的数字**——K/V 预取能给的都给了，剩下的时间不在全局访存，而在每 tile 5 次 __syncthreads 串起来的「QK^T→S 落 smem→标量 softmax→O 重缩放→PV→O 回写」相位链。
+- **H2 前半成立**：v1→v2 ×4.5；v3 +33% 说明 v2 的 4 warp/128 线程吃不满 1 block/SM 的机器；**v4 仅 +7.1% 是本实验最有信息量的数字**——K/V 预取能给的都给了，剩下的时间不在全局访存，而在每 tile 5 次 __syncthreads 串起来的「QK^T→S 落 smem→标量 softmax→O 重缩放→PV→O 回写」相位链。
 - **H2 后半成立（量化了架构税）**：v4 34.8 TF = Triton 版（triton-kernels#EXP-T01， S=4096 1.119ms ≈ 123 TF，**跨 harness，推断级**） 的 **28%**，= sdpa-flash (≈140 TF) 的 25%。差距解释（推断， NCU 不可用未剖析确认）：Triton 编译到 mma PTX，fragment 布局已知 → softmax/α 直接在寄存器上做、 O 常驻寄存器， 全程无 smem 往返、无相位 sync；wmma 隐藏布局逼出的 smem 中转把 FA2 的「融合免搬运」优势吃掉大半。**结论一句话： GEMM 用 wmma 够到 cuBLAS 86%（EXP-K02《CUDA Tensor Core GEMM 版本梯》），FA2 用 wmma 只够到 28%——越是靠融合吃饭的算子，越需要 mma 级寄存器控制，这就是 FA2 官方实现用 CUTLASS/mma 不用 wmma 的原因。**
 - v0→v1 仅 +11%：K/V 广播读 L2 早已扛住（单 kv-head K = S·D·2B = 1MB ≪ 72MB L2），与 gemm v0→v1(compute-bound，+25%) 机理不同但同样「白忙」—— 优化前先想清楚当前瓶颈层。
 
