@@ -51,9 +51,10 @@
   6.6% 是 2.3/34.8，**分母误用终值**。已扩散 20 处（含 `PORTFOLIO`、两处源码注释、绘图脚本），本轮统一订正。
   同句的 v2→v3 **+33%** 经核为 33.2%，分母用法正确，不动。
   两条均不改变任何结论方向（7.1% 依然是很小的增量，"排除访存假设"的论证不受影响）。
-  **连带待办**：`scripts/plot_readme_figures.py` 的图例与标题含该数字，
-  `figures/02_fa2_wmma_ladder.png` 需在主力机（`/root/venvs/kernel-opt`，有 uming 字体）重新生成——
-  采集主机字体与 matplotlib 版本不同，就地重绘会让所有 PNG 产生无意义的二进制差异。
+  **连带待办已销账**：`figures/02_fa2_wmma_ladder.png` 已在主力机（`/root/venvs/kernel-opt`，
+  matplotlib 3.11.1 + uming 字体）经 `scripts/plot_readme_figures.py` 重绘，标题与 v4 标签均为 +7.1%。
+  重绘后 `01`/`03` 两图 sha256 逐字节不变、只有 `02` 变化——这正是把重绘留到主力机的理由：
+  同环境重绘不会用无意义的二进制差异淹没真正的那一处变更。
 
 - **对外化改版**：PORTFOLIO 顶部勘误横幅与正文内嵌勘误注记、README 台账/红线表，已全部收入本文件；README/PORTFOLIO 正文只保留降级后的对外措辞。
 
