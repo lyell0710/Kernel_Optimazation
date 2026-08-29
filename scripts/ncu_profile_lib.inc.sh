@@ -44,8 +44,12 @@ ncu_run_one() {
   local kernel="$1"; shift
 
   local window=()
-  [ -n "$NCU_SKIP" ]  && window+=(-s "$NCU_SKIP")
-  [ -n "$NCU_COUNT" ] && window+=(-c "$NCU_COUNT")
+  # 用 :- 兜底:这两个是「钉采样窗口」的可选环境变量(见 PROFILING_HOST_TASKS §4)。
+  # 它们的默认值由上面的初始化函数设置,但那形成了一个隐式前置依赖——
+  # 任何先调 ncu_run_one 而没走过初始化的调用方,都会在 set -u 下直接崩,
+  # 且 "unbound variable" 完全指不到真正的原因。就地兜底比依赖调用顺序稳。
+  [ -n "${NCU_SKIP:-}" ]  && window+=(-s "${NCU_SKIP}")
+  [ -n "${NCU_COUNT:-}" ] && window+=(-c "${NCU_COUNT}")
 
   local err status
   err="$(mktemp)"

@@ -189,17 +189,41 @@ EXP-K08 已给出原因——量化只占端到端链路的 1.8%，属 Amdahl �
 这不是 EXP-K08 引入的（`bc18547` 只改了 `quant_per_token.cu` 11 行，未动 bench.py），
 而是既有的不一致；第一轮因 w8a8 未采集而没暴露。
 
-**未处置，留待决定**——两条路各有取舍，且都超出"采集主机不改算法/测试逻辑"的边界：
+**已决定：采 (a)，从 `PROFILE_TARGETS` 删除 `quant_v1`，不给 bench 补臂。**
 
-- (a) 从 `PROFILE_TARGETS` 删除 `quant_v1`：诚实反映 bench 覆盖，但版本梯 v0→v2 中间缺一环；
-- (b) 在 `bench.py` 补一条 `quant_v1` 臂：版本梯完整，但改动了 benchmark 口径，
-  须重跑 3 轮并核对是否影响既有 CSV。
+理由是量级不对称：quant 在整条 W8A8 链路只占 **1.8%**（EXP-K06 §5.1 实测），
+补一条 v1 臂改变不了任何结论，却要付「改 benchmark 口径 + 重跑 3 轮 + 核对既有 CSV」的代价。
+为一个占 1.8% 的中间版本动 benchmark 口径不划算。
+
+删除时在 `w8a8/project-proof/scripts/profile_ncu.sh` 的原位置写明了缘由，
+让读脚本的人当场知道"为什么 targets 里没有 v1"，而不是再查一遍。
+
+**一处仍待处理**：原计划同时在 `w8a8/src/quant_per_token.cu` 的 `v1_kernel`（第 58 行）
+上方加注释，让源码自己解释"它为何在此却无人调用"。**本轮未做**，因为该文件被按行号引用三处：
+
+| 引用位置 | 指向 |
+|---|---|
+| `docs/lectures/04_w8a8_kernels.md:106` | `quant_per_token.cu:64-72` |
+| `docs/sass_evidence_ladder.md:1025` | `quant_per_token.cu:81` |
+| `docs/sass_evidence_ladder.md:1046` | `quant_per_token.cu:82` |
+
+在第 58 行上方插入注释会让这三处全部偏移，而 `verify_lectures.py` **不在采集主机上**，
+无法自动重定位；且 `sass_evidence_ladder.md` 正在主力机侧修订中，同时改会撞车。
+（连"改写第 10 行现有措辞、不增行"这条路也不通——`sass_evidence_ladder.md:590`
+**逐字引用**了第 10 行的「v1 融合(读一次、寄存器暂存)」。）
+**留给主力机侧连同 SASS 文档修订一起做，改完跑 `verify_lectures.py` 重定位。**
 
 ### 7.3 其余开放问题
 
 1. rope / activation / w8a8 **没有修复前的 NCU 基线**（第一轮按指示跳过了这三个），
    故 §5.4 中它们只有修复后的浪费比，不能像 fused-norm 那样做前后差分。
-   若要补，需在 `bc18547` 之前的提交上重新编译采集。
+
+   **已决定不补。** fused-norm 的完整前后差分已经把机制结论立住
+   （L1TEX 降幅 4.00× = 16 B/4 B、DRAM 纹丝不动），而其余三个算子是 EXP-K08 §1 确认过的
+   **同一根因、同一修法**，再做一遍前后差分只会复述同一个结论，
+   代价却是「回退编译 + 重采 + 保证环境一致」，且 GPU 在计费。
+
+   本条**不再是开放问题**，登记为已决定，以免每次交接都要重新判断一次。
 2. `activation` 的 L1 命中率显示为 `—`（`lookup_hit` 为 0），与 L1TEX = DRAM 自洽（无重用），
    但未单独验证 `l1tex__..._lookup_hit.sum` 在该 kernel 上是否被正常采集。
 3. EXP-K07 遗留的两项（gemv 34.1% 未复现、cuBLAS kernel 选型）本轮**未做**。

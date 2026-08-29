@@ -33,7 +33,13 @@ BENCH_ITERS=1 BENCH_OUT=/dev/null "$PY" bench.py >/dev/null
 PROFILE_TARGETS=(
   "quant_v0_absmax:v0_absmax_kernel"
   "quant_v0_quant:v0_quant_kernel"
-  "quant_v1:v1_kernel"
+  # quant_v1 **故意不在此列**:`v1_kernel` 在 src/quant_per_token.cu 里存在且被编译,
+  # 但 bench.py 从不调用它(只跑 quant_v0 / quant_v2 / dequant_v0 / dequant_v1 /
+  # gemv_v0 / gemv_v1),所以 ncu 的 Available Kernels 里根本没有它,采集必然空报告。
+  # 为什么不给 bench 补一条 v1 臂:quant 在整条 W8A8 链路只占 1.8%(EXP-K06 §5.1 实测),
+  # 补臂改变不了任何结论,却要付「改 benchmark 口径 + 重跑 3 轮 + 核对既有 CSV」的代价。
+  # v1 保留在源码里是作为版本梯中间态(标量 v0 → 融合 v1 → 向量化 v2)的可读性资产。
+  # 缘由与实测见 EXP-K09 §7.2。
   "quant_v2:v2_kernel"
   "dequant_v0:dequant_v0_kernel"
   "dequant_v1:dequant_v1_kernel"

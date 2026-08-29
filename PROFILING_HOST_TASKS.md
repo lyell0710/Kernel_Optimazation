@@ -175,7 +175,8 @@ scp <user>@<采集主机IP>:~/Kernel_Optimazation/artifacts/ncu_for_mac/ncu_for_
 | 陷阱 | 表现 | 处理 |
 |---|---|---|
 | `-k regex:` 未锚定 | 一份报告混入多个 kernel，跨版本对比失效 | 用 `^` 锚定。`w8a8` 的 `v1_kernel` 是 `dequant_v1_kernel` / `gemv_v1_kernel` 的子串 |
-| 空报告静默 | ncu 退出码 0，报告零实例 | 已在 `ncu_profile_lib.inc.sh` 里拦截并删除，不中止整轮 |
+| 空报告静默 | regex 抓不到 kernel 时 ncu 退出码仍为 0，且**根本不生成报告文件** | 曾声称"已拦截、不中止整轮"，实测**从未生效**（w8a8 因此只采到 2/8）。已于 EXP-K09 §7.1 修复，并加了回归测试 `scripts/test_ncu_empty_report_guard.sh`——改动该拦截逻辑后务必跑一次 |
+| **torch 扩展缓存不失效** | 改了 `.cu` 源码却采到**旧代码**，且日志完全看不出来 | 采 torch 扩展算子前先 `rm -rf ~/.cache/torch_extensions/`，重编译后用 `cuobjdump -sass <so> \| grep -c LDG.E.128` 之类的 SASS 判据确认拿到的是新代码（EXP-K09 §2） |
 | `sm_75` 默认目标 | SASS 不是实际执行的码 | 显式 `-DCMAKE_CUDA_ARCHITECTURES=89`，构建后 `cuobjdump -lelf` 核对 |
 | cuDNN 硬编码路径 | `softmax` configure 阶段失败 | 已改为多路径搜索；装 `libcudnn9-dev-cuda-12` |
 | CMake 缓存 | 改了 `-DCMAKE_CUDA_ARCHITECTURES` 却不生效 | `rm -rf */build` 重来 |
