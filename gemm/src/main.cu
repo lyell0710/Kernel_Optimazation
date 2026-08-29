@@ -72,7 +72,8 @@ int main() {
 
     struct { const char* name; Fn fn; } vs[] = {
         {"v0", gemm_v0}, {"v1", gemm_v1}, {"v2_wmma", gemm_v2},
-        {"v3_dbuf", gemm_v3}, {"v4_bigtile", gemm_v4}, {"cublas", gemm_cublas}};
+        {"v3_dbuf", gemm_v3}, {"v4_bigtile", gemm_v4}, {"v5_mmaPTX", gemm_v5},
+        {"cublas", gemm_cublas}};
 
     const char* outp = std::getenv("BENCH_OUT");          // CORE 铁律5:UTC 前缀新文件
     std::ofstream csv(outp ? outp : "project-proof/data/benchmark_results.csv",

@@ -10,3 +10,11 @@ c34332d39fe847e83951cab0c3bdc539e176039e03879551e59704196df6535d  ./20260824T151
 fcb4dce5dc97a1dbd3d8ad0f6428ed1f85d006c8f40251eaa0a8ac18664441a8  ./20260824T1517_gemm4096_r3.csv
 46e2d8ec010b564db1734bd396259687564135c99b45d48ebc011fcd35f082de  ./derived_gemm4096_stability.csv
 2c183f99bea34a93a38001f05ad45738f98d4b5925a03a84c8fd1891c6d3a35b  ./ptxas_resource_usage.txt
+
+# --- v5 批次 (2026-08-30, EXP-K10) ---
+# 勘误: 本批次 raw 首行 provenance 的 sha=unknown 系 GIT_SHA 环境变量未设(main.cu 读 getenv("GIT_SHA"));
+#       raw 不可变, 以本勘误行为准。真实代码 SHA = <见 commit>。
+9dde144389c4cad9478bd2910ac8685f036f63e158de979107321b1bdb0ae064  ./20260829T193704_gemm4096_v5_r1.csv
+a0da14b8564dd01c90ea95267bfa0b926e8292186bc2714ebd4fb2a48530bda7  ./20260829T193706_gemm4096_v5_r2.csv
+f8bf4e50a45321e6a1fc46de51dedb295f9cf41964caf508d6d31b71768706e0  ./20260829T193709_gemm4096_v5_r3.csv
+ed93c8bcce38540a45cfcfd8bfb02fb994eb3b24c1f4f4c4888fc7e995261c50  ./derived_gemm4096_v5_stability.csv

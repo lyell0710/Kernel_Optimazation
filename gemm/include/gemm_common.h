@@ -20,5 +20,6 @@ void gemm_v1(const half* A, const half* B, half* C, int M, int N, int K);
 void gemm_v2(const half* A, const half* B, half* C, int M, int N, int K);
 void gemm_v3(const half* A, const half* B, half* C, int M, int N, int K);
 void gemm_v4(const half* A, const half* B, half* C, int M, int N, int K);
+void gemm_v5(const half* A, const half* B, half* C, int M, int N, int K);
 // 真 cuBLAS 对照(调用点验真,见 gemm_cublas.cu)——一切「vs cublas」数字的对照物。
 void gemm_cublas(const half* A, const half* B, half* C, int M, int N, int K);

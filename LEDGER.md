@@ -15,6 +15,7 @@
 | [EXP-K07](records/EXP-K07_ncu_counter_closure.md) | 采集主机 NCU 计数器闭环：分管线利用率、GEMM 对照口径核验、fused-norm L2 命题 | ncu_counter_closure | 2026-08-29 | 完成 | 闭合 `ncu_reading_guide` §4 第 1/2/5 条：GEMM v4/cuBLAS 吞吐比 **77.9%** 与 Tensor 管线利用率比 **77.7%** 在 0.2pp 内重合；fused-norm「第二次读不出片」证实且机制精确到 **L1**（向量化修复前 v4 命中 83.2%、L2 仅 0.94%；修复后同一台阶为 33.19% / 0.20%，层级结论不变，见 EXP-K09 §5.1）；FA2 v4 `short_scoreboard` **50.13%** vs `long_scoreboard` **0.31%** → 各 profiling/ncu/ |
 | [EXP-K08](records/EXP-K08_bf16x8_vectorization_fix.md) | BF16x8 向量化未兑现的定位与修复：从 alignas 到 union | bf16x8_vectorization_fix | 2026-08-29 | 完成 | `alignas(16)` 只保证地址对齐、不强制向量化访存，四算子声称的 16 B 向量化在 SASS 层从未兑现；修复后全部兑现但收益分化：L2 区间 fused-norm v3 **+21.3%** / v4 **+41.8%**、rope v3 **+15.0%** / v4 **+48.6%**，而 activation 与 w8a8 **≈0** → 各 data/*vec-after* |
 | [EXP-K09](records/EXP-K09_post_vectorization_sector_ledger.md) | 向量化修复后的扇区账复采：守卫验证与「浪费比」判据 | post_vectorization_sector_ledger | 2026-08-29 | 完成 | L1TEX 请求降幅精确 **4.00×**（=16 B/4 B），DRAM 读仍为 **2.000×S** 算法下界（守卫通过）；修复前 v3/v4 的 16/12×S **比标量版 4×S 还差**，即当时是负优化；「兑现≠收益」获得浪费比判据（§6.3）→ 各 profiling/ncu/ |
+| [EXP-K10](records/EXP-K10_gemm_fa2_v5_mma_ptx.md) | gemm v5 = mma PTX + ldmatrix + smem padding（fa2 v5 待做） | gemm_fa2_v5_mma_ptx | 2026-08-30 | gemm 完成 / fa2 待做 | gemm v5 正确性 PASS、**135.1±2.1 TFLOPS = cuBLAS 88.1%**（v4 132.8 = 85.6%）；**负结果**：padding 消 bank conflict 后性能 +1.7%（std 2.08 未达显著），gemm 剩余差距不在 smem → `project-proof/data/derived_gemm4096_v5_stability.csv` |
 
 ## 措辞红线表(对外文本逐条对照)
 
@@ -26,7 +27,7 @@
 | softmax「快 cuBLAS X%」 | 永久禁用（对照系自写） | cuDNN 对照见 EXP-K04 §4.2 |
 | softmax「快 cuDNN 6.7%」 | 可用，但必须连非对齐形状慢 9.9% 一起报 | EXP-K04 §4.2（两形状同表） |
 | reduce 带宽百分比 | 只在 HBM-bound(1.07 GB)区间可报；L2 常驻区间报带宽即错 | EXP-K04 §4.1 / §6（等效带宽超理论峰值） |
-| GEMM「超过/追平 cuBLAS」 | 禁用（现状 85.6%，**该数字对工具链敏感**） | 85.6% = 主力机 CUDA 13.2（EXP-K02 §8）；采集主机 CUDA 12.8 同协议测得 **77.9%**（EXP-K07《NCU 计数器闭环》 §5.2/§6.2）。两者是不同工具链下的两个数，对外引用维持 85.6% 并知悉该敏感性。**权威工具链已拍板**：85.6%（CUDA 13.2）为权威口径，77.9%（CUDA 12.8）降为跨工具链参照、不得单独引用，出现 85.6% 处加括注「CUDA 13.2；12.8 下为 77.9%」。Triton 版数字不得挪用 |
+| GEMM「超过/追平 cuBLAS」 | 禁用（现状 88.1%，**该数字对工具链敏感**） | 88.1% = 主力机 CUDA 13.2 gemm v5（EXP-K10 §5，135.1 TFLOPS）；v4 同口径 85.6%（EXP-K02 §8）；采集主机 CUDA 12.8 同协议测得 **77.9%**（EXP-K07 §5.2/§6.2）。**权威工具链已拍板**：88.1%（CUDA 13.2，gemm v5）为权威口径，85.6%（v4）为上一实现、77.9%（CUDA 12.8）降为跨工具链参照、不得单独引用，出现 88.1% 处加括注「CUDA 13.2；v4 85.6%、12.8 下 77.9%」。注：v5 与 v4 差 2.5 点但 std 2.08 未达显著，报「v5 快」须带完整限定。Triton 版数字不得挪用 |
 | FA2「达到 sdpa/Triton 水平」 | 禁用（现状 28%） | v5 mma PTX 路线；EXP-K03 §8 |
 | 一切 vs Triton/sdpa 数字 | **GEMM/FA2 已解锁为实测级**（EXP-K05 三个融合算子本就同 harness） | 同 harness 复测已完成（EXP-K09 §5.18）：`scripts/same_harness/` 把本仓 CUDA kernel 绑成 torch 扩展，与姊妹仓在**同一进程、同一份数据、同一计时协议**下对照。FA2 = Triton 的 **28.1%**（3 次 28.1/28.2/28.1），与跨 harness 的 28% 吻合到小数点后一位；vs sdpa **23.4%**（3 次全同）。GEMM = Triton 的 **78.6%~81.0%**（报区间，cuda 侧 std 较大） |
 | softmax 的任何「vs cuBLAS」对比句 | 作废（对照物系自写 kernel，cuBLAS 无 softmax API） | 无解锁；EXP-K01 §5 勘误 |
@@ -41,7 +42,7 @@
 | ~~EXP-K04「L2 区间 CUB 快 33.3%」~~ | **已更正并落地**：L2 区间 CUB 快 **12.1%**；HBM 区间**贴平** | 原数以 v7 为对照，而 v7 侧计时含 `cudaMalloc`/`cudaFree`（v6/v7 还多一次 `cudaGetDeviceProperties`）、CUB 侧不含 —— 口径不对称，偏置只加在手写侧。主力机同协议 3 轮重测：L2 CUB 0.019808±0.000136 ms vs v7 0.022535±0.000065 ms = CUB 快 **12.1%**（本机 13.5%；**33.3 个点里约 20 个来自分配器**，方向不变、幅度是真实值）；HBM v7 1.12659±0.00033 ms（953.1 GB/s，峰值 **94.5%**）vs CUB 1.12789±0.00041 ms（952.0 GB/s，94.4%）—— v7 反快 0.1%、与轮间 std 同量级，判为**测量分辨率内贴平**，任何一方领先的写法都禁用。讲义 §8.3.4 的预判由此实测闭合。数据 `records/data/exp_k04_cuda_reduce_calfix_3rounds.csv` / `records/data/exp_k04_reduce_hbmbound_calfix_3rounds.csv`，来龙去脉 EXP-K09 §6.20，更正块 EXP-K04 §7.1；本轮已统一落地 EXP-K04 与对外文本 |
 | reduce「≈1193× 端到端」 | 仍需硬件+工具链定语，**但定语可换** | 4090/CUDA 12.8 口径已测 = **2709×**（3 轮，baseline 151.478 ms ÷ v5 0.05592 ms）。**不可摘定语**：该值跨环境 1196×（Laptop）→2709×（本机）→4909×（主力机），跨度 4 倍；分子是 `<<<1,1>>>` 单线程，比值绝大部分来自硬件差距而非代码；且「自写最优」在三环境里分别是 v5/v5/v7。EXP-K09 §5.13/§6.13 |
 |「smem 是 GEMM/FA2 剩余差距的瓶颈」 | **可用**（4090 计数器实测） | EXP-K07《NCU 计数器闭环》 §5.4/§6.5：FA2 v4 `short_scoreboard` 50.13% vs `long_scoreboard` 0.31%；gemm v4 smem 冲突波前占 77.1%（放大 4.37×），cuBLAS 2.4%（1.02×） |
-|「swizzle 能消除该瓶颈」 | **推断，不可当实测说** | 本轮只证明瓶颈在 smem，未验证 swizzle 是解法；解锁条件 = 实现 v5（mma PTX + ldmatrix + swizzle）并同协议复测 |
+|「swizzle 能消除该瓶颈」 | **gemm 已证伪、fa2 待验证** | gemm v5（EXP-K10）padding 消 bank conflict 后性能仅 +1.7%（std 2.08，未达显著）→ **gemm 的 smem 冲突不是瓶颈，swizzle 不是 gemm 的解法**；fa2 与 gemm 不同（smem 紧张 90.75/99KB），判据不变：short_scoreboard + bank_conflicts 双降且端到端正收益 |
 | 「向量化兑现 ⇒ 有收益」 | **禁用该推论** | 判据单向:浪费比(L1TEX/DRAM)≈1 → **必然无** sector 层面收益;>1 → **不保证**有收益。反例:`w8a8` quant_v2 浪费比 2.00× 仍 ≈0 收益(量化只占链路 1.7%,属 Amdahl 上限)。三者缺一不可:`LDG.E.128>0` 只证兑现,浪费比证有无可回收量,端到端占比证值不值。EXP-K09 §6.3 |
 
 ## 勘误 / 审计留痕(横幅集中处;原文与史料见 records/、docs/archive/、LAB_JOURNAL)

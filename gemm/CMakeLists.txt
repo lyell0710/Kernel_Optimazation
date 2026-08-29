@@ -10,5 +10,5 @@ set(CMAKE_CUDA_ARCHITECTURES 89)
 include_directories(include)
 add_executable(gemm_bench
     src/main.cu src/gemm_v0.cu src/gemm_v1.cu src/gemm_v2.cu
-    src/gemm_v3.cu src/gemm_v4.cu src/gemm_cublas.cu)
+    src/gemm_v3.cu src/gemm_v4.cu src/gemm_v5.cu src/gemm_cublas.cu)
 target_link_libraries(gemm_bench PRIVATE cublas)
