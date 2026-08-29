@@ -7,7 +7,7 @@
 | 编号 | 名称 | slug | 日期 | 状态 | 关键数字（指针） |
 |---|---|---|---|---|---|
 | [EXP-K01](records/EXP-K01_4090_rebench.md) | 四 kernel 4090 重基准：roofline 迁移（4070 Laptop → 4090） | 4090_rebench | 2026-08-23 | 完成（带 8/24 勘误） | 4090 reduce v7 反超 cuBLAS 24.5%（3 轮）；softmax 对比句作废（对照系自写 kernel，勘误见记录 §5）；gemv v3 快 cuBLAS **37.8%**（3 轮；单轮 84% 不可复现——cuBLAS 侧波动，勘误见 §7 闭环）→ 各 project-proof/data/ |
-| [EXP-K04](records/EXP-K04_standard_library_baselines.md) | 标准库基准补齐与两区间重测（CUB / cuDNN 入场） | standard_library_baselines | 2026-08-25 | 完成 | 补 CUB/cuDNN 同算子基准并两区间重测：HBM-bound v7 93.9% 峰值（与 CUB 差 0.7%）、L2 区间 CUB 快 33.3%、softmax vs cuDNN +6.7%/−9.9%、gemv 34.1%；**作废** "reduce 反超 cuBLAS 24.5%" 的对外用法 → records/data/exp_k04_* |
+| [EXP-K04](records/EXP-K04_standard_library_baselines.md) | 标准库基准补齐与两区间重测（CUB / cuDNN 入场） | standard_library_baselines | 2026-08-25 | 完成（reduce 两区间经计时口径更正，见记录 §7.1） | 补 CUB/cuDNN 同算子基准并两区间重测：HBM-bound v7 **94.5%** 峰值（与 CUB 在测量分辨率内**贴平**，v7 反快 0.1%）、L2 区间 CUB 快 **12.1%**（原发布 33.3% 系 v7 侧计时含分配器开销、CUB 侧不含的口径不对称，同协议 3 轮重测更正）、softmax vs cuDNN +6.7%/−9.9%、gemv 34.1%；**作废** "reduce 反超 cuBLAS 24.5%" 的对外用法 → reduce 两区间取 records/data/exp_k04_{cuda_reduce,reduce_hbmbound}_calfix_3rounds.csv，其余 records/data/exp_k04_* |
 | [EXP-K02](records/EXP-K02_cuda_gemm_tc_ladder.md) | CUDA Tensor Core GEMM 版本梯（v0→v4,vs 真 cuBLAS） | cuda_gemm_tc_ladder | 2026-08-24 | 完成 | Tensor Core GEMM v0→v4:133.1±0.97 TFLOPS = 真 cuBLAS 85.6%（4096³,3 轮）→ gemm/project-proof/data/ |
 | [EXP-K03](records/EXP-K03_cuda_fa2_ladder.md) | CUDA FA2 forward 简化版版本梯（v0→v4，量化 wmma 架构税） | cuda_fa2_ladder | 2026-08-24 | 完成 | CUDA FA2 v0→v4:34.8±0.12 TFLOPS = 自家 Triton 28%（跨 harness）,wmma 架构税量化 → flash-attn/project-proof/data/ |
 | [EXP-K05](records/EXP-K05_llm_fused_elementwise.md) | LLM 融合逐元素算子三件套：fused_add_rmsnorm / rope / silu_and_mul | llm_fused_elementwise | 2026-08-26 | 完成 | 三个算子 HBM 区间贴到理论峰值 **89.9%–92.1%**，手写 CUDA / Triton / torch.compile 打平；分水岭是融不融合（pytorch_eager 仅 17.5%–55.1%）→ 各 `project-proof/data/derived_*_vec-after_stability.csv`（EXP-K08 复采口径） |
@@ -26,7 +26,7 @@
 | softmax「快 cuBLAS X%」 | 永久禁用（对照系自写） | cuDNN 对照见 EXP-K04 §4.2 |
 | softmax「快 cuDNN 6.7%」 | 可用，但必须连非对齐形状慢 9.9% 一起报 | EXP-K04 §4.2（两形状同表） |
 | reduce 带宽百分比 | 只在 HBM-bound(1.07 GB)区间可报；L2 常驻区间报带宽即错 | EXP-K04 §4.1 / §6（等效带宽超理论峰值） |
-| GEMM「超过/追平 cuBLAS」 | 禁用（现状 85.6%，**该数字对工具链敏感**） | 85.6% = 主力机 CUDA 13.2（EXP-K02 §8）；采集主机 CUDA 12.8 同协议测得 **77.9%**（EXP-K07《NCU 计数器闭环》 §5.2/§6.2）。两者是不同工具链下的两个数，对外引用维持 85.6% 并知悉该敏感性。Triton 版数字不得挪用 |
+| GEMM「超过/追平 cuBLAS」 | 禁用（现状 85.6%，**该数字对工具链敏感**） | 85.6% = 主力机 CUDA 13.2（EXP-K02 §8）；采集主机 CUDA 12.8 同协议测得 **77.9%**（EXP-K07《NCU 计数器闭环》 §5.2/§6.2）。两者是不同工具链下的两个数，对外引用维持 85.6% 并知悉该敏感性。**权威工具链已拍板**：85.6%（CUDA 13.2）为权威口径，77.9%（CUDA 12.8）降为跨工具链参照、不得单独引用，出现 85.6% 处加括注「CUDA 13.2；12.8 下为 77.9%」。Triton 版数字不得挪用 |
 | FA2「达到 sdpa/Triton 水平」 | 禁用（现状 28%） | v5 mma PTX 路线；EXP-K03 §8 |
 | 一切 vs Triton/sdpa 数字 | **GEMM/FA2 已解锁为实测级**（EXP-K05 三个融合算子本就同 harness） | 同 harness 复测已完成（EXP-K09 §5.18）：`scripts/same_harness/` 把本仓 CUDA kernel 绑成 torch 扩展，与姊妹仓在**同一进程、同一份数据、同一计时协议**下对照。FA2 = Triton 的 **28.1%**（3 次 28.1/28.2/28.1），与跨 harness 的 28% 吻合到小数点后一位；vs sdpa **23.4%**（3 次全同）。GEMM = Triton 的 **78.6%~81.0%**（报区间，cuda 侧 std 较大） |
 | softmax 的任何「vs cuBLAS」对比句 | 作废（对照物系自写 kernel，cuBLAS 无 softmax API） | 无解锁；EXP-K01 §5 勘误 |
@@ -38,7 +38,7 @@
 | **L2 常驻区间的判定方法**（取代原先单一的「超峰值」说法） | 三层，强度递增 | ①**必要**：工作集 < L2 容量（4090 = 72 MB）；②**充分**：等效带宽 > DRAM 物理峰值（满足即落 L2，**不满足不能排除**）；③**决定性**：`ncu --cache-control all` 与 `none` 的 `dram__bytes_read.sum` 对比。①命中而②未命中时**必须上③**——`int8-quantize` 即此情形。EXP-K09 §6.8 |
 | `w8a8` prefill **2.161×** | **已过 regime 检验，无需区间限定** | 对外形状 O=12288 处 int8 权重 50.3 MB 在 L2 内、bf16 100.7 MB 在 HBM（两臂不同层级）；补测 O=32768（134.2 / 268.4 MB，两边都超 L2）得 **2.267×**，不低反高。机理：`step_int8gemm_col` 跨 L2 边界仅 3.180→3.202×，优势来自算力（int8 525 TOPS vs bf16 165 TFLOPS）而非 cache。EXP-K09 §5.12/§6.12 |
 | ~~reduce v7 跨工具链行为不一致~~ | **已闭环，归因被推翻**（EXP-K09 §5.17/§6.19） | 元凶不是 two-pass 结构，而是 **v6/v7 在计时区内调 `cudaGetDeviceProperties`**（v1–v5 没有），该调用在 driver 570 上单次达毫秒级。判决性检验是核 v6——实测 v6 = 1.716 ms **同慢**。修正计时口径后本机 v7 = **0.024545 ms** 与主力机 0.024707 ms 差 **0.7%**，跨工具链一致。**主力机数据从未测错。** |
-| **EXP-K04「L2 区间 CUB 快 33.3%」** | **须修正为 12.1%（主力机口径）** | 该数以 v7 为对照，而 v7 侧计时含分配器开销、CUB 侧不含 —— 口径不对称。修正后 L2 区间 CUB 领先 **12.1%（主力机）/ 13.5%（本机）**，**33.3 个点里约 20 个来自分配器**；HBM 区间由「差 0.7%」变为 **−0.0%（分辨率内贴平）**。讲义 §8.3.4 早已预判此事，现已实测闭合。**由主力机侧统一落地 README/EXP-K04。** |
+| ~~EXP-K04「L2 区间 CUB 快 33.3%」~~ | **已更正并落地**：L2 区间 CUB 快 **12.1%**；HBM 区间**贴平** | 原数以 v7 为对照，而 v7 侧计时含 `cudaMalloc`/`cudaFree`（v6/v7 还多一次 `cudaGetDeviceProperties`）、CUB 侧不含 —— 口径不对称，偏置只加在手写侧。主力机同协议 3 轮重测：L2 CUB 0.019808±0.000136 ms vs v7 0.022535±0.000065 ms = CUB 快 **12.1%**（本机 13.5%；**33.3 个点里约 20 个来自分配器**，方向不变、幅度是真实值）；HBM v7 1.12659±0.00033 ms（953.1 GB/s，峰值 **94.5%**）vs CUB 1.12789±0.00041 ms（952.0 GB/s，94.4%）—— v7 反快 0.1%、与轮间 std 同量级，判为**测量分辨率内贴平**，任何一方领先的写法都禁用。讲义 §8.3.4 的预判由此实测闭合。数据 `records/data/exp_k04_cuda_reduce_calfix_3rounds.csv` / `records/data/exp_k04_reduce_hbmbound_calfix_3rounds.csv`，来龙去脉 EXP-K09 §6.20，更正块 EXP-K04 §7.1；本轮已统一落地 EXP-K04 与对外文本 |
 | reduce「≈1193× 端到端」 | 仍需硬件+工具链定语，**但定语可换** | 4090/CUDA 12.8 口径已测 = **2709×**（3 轮，baseline 151.478 ms ÷ v5 0.05592 ms）。**不可摘定语**：该值跨环境 1196×（Laptop）→2709×（本机）→4909×（主力机），跨度 4 倍；分子是 `<<<1,1>>>` 单线程，比值绝大部分来自硬件差距而非代码；且「自写最优」在三环境里分别是 v5/v5/v7。EXP-K09 §5.13/§6.13 |
 |「smem 是 GEMM/FA2 剩余差距的瓶颈」 | **可用**（4090 计数器实测） | EXP-K07《NCU 计数器闭环》 §5.4/§6.5：FA2 v4 `short_scoreboard` 50.13% vs `long_scoreboard` 0.31%；gemm v4 smem 冲突波前占 77.1%（放大 4.37×），cuBLAS 2.4%（1.02×） |
 |「swizzle 能消除该瓶颈」 | **推断，不可当实测说** | 本轮只证明瓶颈在 smem，未验证 swizzle 是解法；解锁条件 = 实现 v5（mma PTX + ldmatrix + swizzle）并同协议复测 |
@@ -125,11 +125,11 @@ FA2「达到 sdpa/Triton 水平」、FA2 28%（后两条已由 EXP-K09 §5.18 �
 
 | # | 事项 | 性质 |
 |---|---|---|
-| 7 | GEMM 85.6%(CUDA 13.2) vs 77.9%(12.8) 定权威工具链 | **决策，不用测**，待拍板 |
+| 7 | GEMM 85.6%(CUDA 13.2) vs 77.9%(12.8) 定权威工具链 | **已拍板**：85.6%（主力机 CUDA 13.2）为权威口径，77.9%（采集主机 CUDA 12.8）降为跨工具链参照、不得单独引用；引用 85.6% 处加括注「CUDA 13.2；12.8 下为 77.9%」。红线「禁用超过/追平 cuBLAS」不变 |
 | 9 | 三个融合算子 autotune（仅 rope 扫过 BLOCK×num_warps，最优与在用差 0.6%） | 低收益，可不做 |
 | 13 | sglang-prefix-lab 双副本 router 矩阵 S02–S07 | **需 ≥2 卡**，采集机是单卡，只能主力机做 |
 | 14 | LLM_Quantization EXP-004/005 | 需该仓与模型权重 |
-| — | EXP-K04「L2 区间 CUB 快 33.3%」改 12.1%、HBM「差 0.7%」改「贴平」 | 数据已备（EXP-K09 §6.20），待主力机落地 |
+| — | ~~EXP-K04 的 L2 区间改 12.1%、HBM 改「贴平」~~ | **已落地**（主力机同协议 3 轮：`records/data/exp_k04_{cuda_reduce,reduce_hbmbound}_calfix_3rounds.csv`；更正块 EXP-K04 §7.1，红线见上表） |
 | — | `figures/02_fa2_wmma_ladder.png` 重绘 | 需主力机字体环境 |
 
 ### C. 采集时必踩的坑（本轮实测，照做可省数小时）
