@@ -17,9 +17,9 @@
 | gemv | v3 比真 `cublasSgemv` 快 **34.1%**（4096x2048 = 33.6 MB，3 轮；前一轮同协议 37.8%，差异来自 cuBLAS 侧轮间波动）。**该幅度只在工作集常驻 L2 时成立**——33.6 MB 放得进 4090 的 72 MB L2，等效带宽 2634 GB/s 已是 DRAM 峰值的 2.6 倍；强制冷读后两者同撞带宽墙（902 对 894 GB/s），差距收敛到 1.4% | [EXP-K04](records/EXP-K04_standard_library_baselines.md)、[EXP-K09](records/EXP-K09_post_vectorization_sector_ledger.md)，`records/data/exp_k04_gemv_3rounds.csv` |
 | int8 quantize | v4 **5.57±0.03 µs**(1024² per-channel symmetric)；单 kernel 融合较 PyTorch eager 快 6.6x（4070 Laptop 口径，单轮） | [EXP-K01](records/EXP-K01_4090_rebench.md),`records/data/exp_k01_int8_quantize_3rounds.csv` |
 | fused_add_rmsnorm | HBM 区间（1.0 GB）达 HBM 理论峰值 **91.4%**(921.3 GB/s)，相对 PyTorch eager **5.23x**，相对 torch.compile 与 Triton **打平**（差 0.1%）;L2 常驻区间（64 MB）**3669.0 GB/s**，相对 torch.compile **3.25x** | [EXP-K05](records/EXP-K05_llm_fused_elementwise.md)、[EXP-K08](records/EXP-K08_bf16x8_vectorization_fix.md)，`fused-norm/project-proof/data/derived_fused-norm_vec-after_stability.csv` |
-| RoPE | HBM 区间（336 MB）v4 达 **90.0%**(906.8 GB/s)，相对 PyTorch eager **5.10x**；L2 常驻区间 **3425.1 GB/s**；同一处「q/k 合并 launch」优化在 HBM 区间 -1.2%、在 decode 区间 **1.39x**，收益方向相反 | [EXP-K05](records/EXP-K05_llm_fused_elementwise.md)、[EXP-K08](records/EXP-K08_bf16x8_vectorization_fix.md)，`rope/project-proof/data/derived_rope_vec-after_stability.csv` |
-| silu_and_mul | HBM 区间（600 MB）v3 达 **92.0%**(927.7 GB/s)；融合一级实测 **1.678x**，与字节账预测的 5/3=1.667x 精确吻合；L2 区间相对 torch.compile **10.6x** | [EXP-K05](records/EXP-K05_llm_fused_elementwise.md)，`activation/project-proof/data/derived_activation_stability.csv` |
-| W8A8 linear（完整链路） | prefill **2.161x** bf16 cuBLAS(T=2048/H=4096/O=12288)；decode 的 M=1 库路径不可用，自写 dp4a GEMV 在 HBM 区间 **1.972x**；同一份权重多做一次 `.contiguous()` 则整条链路变成 **0.734x**—— 3.6 倍差距全部来自 stride | [EXP-K06](records/EXP-K06_w8a8_linear.md)，`w8a8/project-proof/data/derived_w8a8_stability.csv` |
+| RoPE | HBM 区间（336 MB）v4 达 **89.9%**(906.8 GB/s)，相对 PyTorch eager **5.10x**；L2 常驻区间 **3425.1 GB/s**；同一处「q/k 合并 launch」优化在 HBM 区间 -1.2%、在 decode 区间 **1.39x**，收益方向相反 | [EXP-K05](records/EXP-K05_llm_fused_elementwise.md)、[EXP-K08](records/EXP-K08_bf16x8_vectorization_fix.md)，`rope/project-proof/data/derived_rope_vec-after_stability.csv` |
+| silu_and_mul | HBM 区间（600 MB）v3 达 **92.1%**(928.3 GB/s)；融合一级实测 **1.680x**，与字节账预测的 5/3=1.667x 精确吻合；L2 区间相对 torch.compile **7.41x** | [EXP-K05](records/EXP-K05_llm_fused_elementwise.md)、[EXP-K08](records/EXP-K08_bf16x8_vectorization_fix.md)，`activation/project-proof/data/derived_activation_vec-after_stability.csv` |
+| W8A8 linear（完整链路） | prefill **2.167x** bf16 cuBLAS(T=2048/H=4096/O=12288)；decode 的 M=1 库路径不可用，自写 dp4a GEMV 在 HBM 区间 **1.972x**；同一份权重多做一次 `.contiguous()` 则整条链路变成 **0.726x**—— 3.6 倍差距全部来自 stride | [EXP-K06](records/EXP-K06_w8a8_linear.md)，`w8a8/project-proof/data/derived_w8a8_vec-after_stability.csv` |
 
 ![GEMM Tensor Core 版本梯](figures/01_gemm_tc_ladder.png)
 
@@ -37,17 +37,17 @@
 
 ## 关键发现
 
-**布局适配可以比任何一级 kernel 优化都值钱。** W8A8 链路上，同一份 int8 权重只是多做了一次 `.contiguous()`，INT8 GEMM 就从 2.75x bf16 掉到 0.756x，整条链路从 2.161x 变成 0.734x—— 3.6 倍的差距不涉及任何计算改动，全部来自 stride。 INT8 Tensor Core 要求 B 矩阵列主序，而 `F.linear` 里的 `w.t()` 天然就是列主序， 正确布局本来是免费的。这条与「赢的三种形态」并列：不改一行计算，只让数据以硬件想要的方式到达。
+**布局适配可以比任何一级 kernel 优化都值钱。** W8A8 链路上，同一份 int8 权重只是多做了一次 `.contiguous()`，INT8 GEMM 就从 2.74x bf16 掉到 0.756x，整条链路从 2.167x 变成 0.726x—— 3.6 倍的差距不涉及任何计算改动，全部来自 stride。 INT8 Tensor Core 要求 B 矩阵列主序，而 `F.linear` 里的 `w.t()` 天然就是列主序， 正确布局本来是免费的。这条与「赢的三种形态」并列：不改一行计算，只让数据以硬件想要的方式到达。（EXP-K06《W8A8 linear 完整链路》，`w8a8/project-proof/data/derived_w8a8_vec-after_stability.csv`）
 
-**量化会把被测对象搬到另一个存储层级，从而破坏对比的前提。** int8 GEMV 在三个输出宽度下给出 5.30x / 8.82x / 1.972x 三个答案：O=12288 时 int8 权重 50 MB 落进 4090 的 72 MB L2、bf16 权重 101 MB 仍在 HBM—— 两条臂不在同一层级上比，8.82x 是无效数字。只有两边都超 L2 的那一档（1.972x）可外推，且此时两条臂都贴到 93% 带宽峰值。这是 EXP-K04「测量效度先算账」在量化算子上的重演，而且更隐蔽：上次是忘了测 HBM 区间，这次是量化本身跨过了 L2 的边界。
+**量化会把被测对象搬到另一个存储层级，从而破坏对比的前提。** int8 GEMV 在三个输出宽度下给出 4.43x / 8.69x / 1.972x 三个答案：O=12288 时 int8 权重 50 MB 落进 4090 的 72 MB L2、bf16 权重 101 MB 仍在 HBM—— 两条臂不在同一层级上比，8.69x 是无效数字。只有两边都超 L2 的那一档（1.972x）可外推，且此时两条臂分别贴到 94.4% / 93.1% 带宽峰值。这是 EXP-K04「测量效度先算账」在量化算子上的重演，而且更隐蔽：上次是忘了测 HBM 区间，这次是量化本身跨过了 L2 的边界。（EXP-K06《W8A8 linear 完整链路》，同一份 `w8a8/project-proof/data/derived_w8a8_vec-after_stability.csv` 的 decode 三档；峰值口径 1008 GB/s 见 [ENV.md](ENV.md)）
 
-**贴上带宽墙之后，语言不再重要；分水岭是融不融合。** 三个访存主导的融合逐元素算子上， HBM 区间的手写 CUDA(905.9–927.7 GB/s)、Triton(898.5–928.0)与 torch.compile (877.2–925.7)两两差距均小于 2%，统统落在 88–92% 峰值；而未融合的 PyTorch eager 落后 1.7–5.2 倍。手写 CUDA 的价值只在两处仍然成立：L2 常驻区间（相对 torch.compile 快 3.2–10.6 倍）与 decode 的 launch 敏感区间（相对 Triton 快 2.5–11 倍）——而推理引擎恰好常驻这两个区间。配合 GEMM（手写够到真 cuBLAS 85.6%）与 FA2（同一套 wmma 只够到自家 Triton 28%），「什么时候该用手写 CUDA」由此成为一条三点曲线：价值集中在需要 mma 级寄存器控制的场合。
+**贴上带宽墙之后，语言不再重要；分水岭是融不融合。** 三个访存主导的融合逐元素算子上， HBM 区间的手写 CUDA(906.8–928.3 GB/s)、Triton(898.9–927.8)与 torch.compile (877.5–925.9)统统落在 87–92% 峰值，同一算子内三者两两差距最大 3.3%（出在 rope 的 torch.compile 臂，另两个算子都在 0.3% 以内）；而未融合的 PyTorch eager 落后 1.7–5.2 倍。手写 CUDA 的价值只在两处仍然成立：L2 常驻区间（相对 torch.compile 快 3.25–7.41 倍）与 decode 的 launch 敏感区间（相对 Triton 快 2.49–4.86 倍）——而推理引擎恰好常驻这两个区间。配合 GEMM（手写够到真 cuBLAS 85.6%）与 FA2（同一套 wmma 只够到自家 Triton 28%），「什么时候该用手写 CUDA」由此成为一条三点曲线：价值集中在需要 mma 级寄存器控制的场合。（本段三个逐元素算子的数字取自 `fused-norm/project-proof/data/derived_fused-norm_vec-after_stability.csv`、`rope/project-proof/data/derived_rope_vec-after_stability.csv`、`activation/project-proof/data/derived_activation_vec-after_stability.csv`：EXP-K05《LLM 融合逐元素算子三件套》、EXP-K08《BF16x8 向量化未兑现的定位与修复》；GEMM 的 85.6% 与 FA2 的 28% 另见 EXP-K02《CUDA Tensor Core GEMM 版本梯》与 EXP-K03《CUDA FA2 forward 简化版版本梯》）
 
-**字节账要在 HBM 层面记，不能在指令层面记。** fused_add_rmsnorm 在 HBM 区间，按指令计数预测「寄存器缓存消掉第二遍重读」应有 +25%，实测 0%。性能计数器直接给出了原因：DRAM 读扇区恒为 **2.000 倍**算法下界（两个输入张量各读一遍），第二遍重读一个扇区都没落到显存；而 L1 命中率 **83.2%**、L2 读命中率仅 **0.94%**——**接住它的是 L1，不是 L2**。被优化掉的是一次 L1 命中而非一次显存访问。静态字节账高估可优化空间的根源，是它把「发出一次 load 指令」等同于「搬一次显存」。该结论限 HBM 区间；L2 常驻区间带宽有余，同一改动的收益是另一回事。
+**字节账要在 HBM 层面记，不能在指令层面记。** fused_add_rmsnorm 在 HBM 区间，按指令计数预测「寄存器缓存消掉第二遍重读」应有 +25%，实测 0%。性能计数器直接给出了原因：DRAM 读扇区恒为 **2.000×S** 的算法下界（两个输入张量各读一遍，实测 2.001×S），第二遍重读一个扇区都没落到显存；而 L1 命中率 **33.19%**、L2 读命中率仅 **0.20%**——**接住它的是 L1，不是 L2**（EXP-K09《向量化修复后的扇区账复采》§5.1）。被优化掉的是一次 L1 命中而非一次显存访问。静态字节账高估可优化空间的根源，是它把「发出一次 load 指令」等同于「搬一次显存」。该结论限 HBM 区间；L2 常驻区间带宽有余，同一改动的收益是另一回事。
 
 **性能台阶来自指令世代，而非访存微调。** GEMM 版本梯上，smem tile 化（v0 至 v1）只带来 +25%，换用 Tensor Core 指令（v1 至 v2，wmma）一步 13.8x。compute-bound 算子里访存微调只是坡，指令世代才是台阶；反过来，memory-bound 的 reduce / gemv 里指令层面的微调收益趋近于 0。应先判定算子是 memory-bound 还是 compute-bound，再选优化手段——错配的优化在错误的方向上没有回报。
 
-**wmma 的架构税：同一套工具箱，GEMM 够到 86%，FA2 只够到 28%。** wmma accumulator fragment 的 lane 到元素的映射是编译器私有的，FA2 的行级 softmax(max/exp/rescale)无法直接在 fragment 上做——QK^T 结果必须 `store_matrix_sync` 落回 shared memory，再由标量段逐行重读，外加每个 tile 5 次 `__syncthreads` 的相位链。测量显示把 K/V 访存全部预取重叠后仅 +7.1%，说明瓶颈在这条相位链而非访存。越是依赖「融合免搬运」的算子，越需要 mma 级的寄存器控制——这正是官方 FA2 采用 CUTLASS/mma 而非 wmma 的定量理由。
+**wmma 的架构税：同一套工具箱，GEMM 够到 85.6%，FA2 只够到 28%。** wmma accumulator fragment 的 lane 到元素的映射是编译器私有的，FA2 的行级 softmax(max/exp/rescale)无法直接在 fragment 上做——QK^T 结果必须 `store_matrix_sync` 落回 shared memory，再由标量段逐行重读，外加每个 tile 5 次 `__syncthreads` 的相位链。测量显示把 K/V 访存全部预取重叠后仅 +7.1%，说明瓶颈在这条相位链而非访存。越是依赖「融合免搬运」的算子，越需要 mma 级的寄存器控制——这正是官方 FA2 采用 CUTLASS/mma 而非 wmma 的定量理由。
 
 **理论 occupancy 33% 为全梯最低，却是最快版本。** gemm v4 每线程 92 寄存器 x 256 线程 + 32KB smem，每 SM 只驻 2 个 block；但 4x2=8 个 accumulator fragment 常驻寄存器、一次 load 参与多次 `mma_sync`，Tensor Core 吞吐靠 fragment 级 ILP 与 smem 复用喂满，不靠线程数遮蔽延迟。occupancy 是手段，不是目标。
 
@@ -123,7 +123,7 @@ flowchart LR
         }
 ```
 
-机制：wmma accumulator fragment 的 lane 到元素的映射是编译器私有的，行级 max/exp/rescale 无法在 fragment 上做——QK^T 结果必须 `store_matrix_sync` 落 shared memory，再由标量段逐行重读。这一往返加上每 tile 5 次 `__syncthreads` 的相位链，把 FA2「融合免搬运」的优势吃掉大半：GEMM 用 wmma 够到 cuBLAS 的 86%，FA2 只够到自家 Triton 版（mma + 寄存器驻留）的 28%（跨 harness）。这就是官方 FA2 采用 CUTLASS/mma 而非 wmma 的定量理由（EXP-K03《CUDA FA2 forward 简化版版本梯》§6）。
+机制：wmma accumulator fragment 的 lane 到元素的映射是编译器私有的，行级 max/exp/rescale 无法在 fragment 上做——QK^T 结果必须 `store_matrix_sync` 落 shared memory，再由标量段逐行重读。这一往返加上每 tile 5 次 `__syncthreads` 的相位链，把 FA2「融合免搬运」的优势吃掉大半：GEMM 用 wmma 够到 cuBLAS 的 85.6%，FA2 只够到自家 Triton 版（mma + 寄存器驻留）的 28%（跨 harness）。这就是官方 FA2 采用 CUTLASS/mma 而非 wmma 的定量理由（EXP-K03《CUDA FA2 forward 简化版版本梯》§6）。
 
 ## 快速开始
 
@@ -157,9 +157,9 @@ bash scripts/run_ncu_all.sh
 | [EXP-K02 CUDA Tensor Core GEMM 版本梯(v0→v4,vs 真 cuBLAS)](records/EXP-K02_cuda_gemm_tc_ladder.md) | Tensor Core GEMM 版本梯 v0 至 v4：性能台阶来自指令世代（v1 至 v2 为 13.8x），v4 133.1 TFLOPS = 真 cuBLAS 的 85.6%，理论 occupancy 33% 最低却最快。 |
 | [EXP-K03 CUDA FA2 forward 简化版版本梯(v0→v4,量化 wmma 架构税)](records/EXP-K03_cuda_fa2_ladder.md) | CUDA FA2 版本梯 v0 至 v4：同一套 wmma 工具箱只到 34.8 TFLOPS（同协议 Triton 版的 28%，跨 harness）——架构税量化，瓶颈在 shared memory 往返的相位链。 |
 | [EXP-K04 标准库基准补齐与两区间重测(CUB / cuDNN 入场)](records/EXP-K04_standard_library_baselines.md) | 补齐同算子官方基准（CUB / cuDNN）并分 L2 常驻与 HBM-bound 两区间重测：HBM-bound 时 reduce v7 达 HBM 理论带宽 93.9%、与 CUB 差 0.7%，L2 常驻时 CUB 快 33.3%；softmax 对齐形状快 cuDNN 6.7%、非对齐慢 9.9%；gemv v3 快 `cublasSgemv` 34.1%。 |
-| [EXP-K05 LLM 融合逐元素算子三件套:fused_add_rmsnorm / rope / silu_and_mul](records/EXP-K05_llm_fused_elementwise.md) | LLM 融合逐元素算子三件套（fused_add_rmsnorm / RoPE / silu_and_mul）版本梯，并首次把手写 CUDA、Triton、PyTorch eager、torch.compile 四类臂放进同一个 harness 受测：HBM 区间三种实现两两差 <2%，L2 与 decode 区间手写领先 3.2–10.6x 与 2.5–11x；七条跑前锁定的预测中四条成立、两条被数据推翻。 |
-| [EXP-K06 W8A8 linear 完整链路：per-token 量化 + INT8 GEMM/GEMV + 融合反量化](records/EXP-K06_w8a8_linear.md) | W8A8 linear 完整链路（per-token 量化 + INT8 GEMM + 融合反量化 + decode 用的 dp4a GEMV）：prefill 2.161x、decode HBM 区间 1.972x；三步分解显示量化只占 1.8%、反量化占 26.7%；权重布局值 3.6 倍；M>16 是库路径的硬约束。 |
-| [EXP-K07 NCU 计数器闭环：采集主机上的十算子计数器采集与推断转实测](records/EXP-K07_ncu_counter_closure.md) | 在一台计数器可用的 RTX 4090 上补齐六个 C++ 算子的计数器采集：wmma 的 Tensor 管线利用率由编译期证据升为运行时实测（v1 0% → v2 25.71%）；gemm v4 与 cuBLAS 的性能比 77.9% 与两者 Tensor 管线利用率之比77.7% 吻合；fused-norm「第二次读不出片」证实（DRAM 读恒为算法下界 2.000×，L1 命中率 83%）；补采 CUB 同算子对照。 |
+| [EXP-K05 LLM 融合逐元素算子三件套:fused_add_rmsnorm / rope / silu_and_mul](records/EXP-K05_llm_fused_elementwise.md) | LLM 融合逐元素算子三件套（fused_add_rmsnorm / RoPE / silu_and_mul）版本梯，并首次把手写 CUDA、Triton、PyTorch eager、torch.compile 四类臂放进同一个 harness 受测：HBM 区间三种实现两两差最大 3.3%，L2 与 decode 区间手写领先 3.25–7.41x 与 2.49–4.86x（这三项按 [EXP-K08](records/EXP-K08_bf16x8_vectorization_fix.md) 向量化修复后的复采口径更新，EXP-K05 当轮口径为两两差 <2%、领先 3.2–10.6x 与 2.5–11x）；七条跑前锁定的预测中四条成立、两条被数据推翻。 |
+| [EXP-K06 W8A8 linear 完整链路：per-token 量化 + INT8 GEMM/GEMV + 融合反量化](records/EXP-K06_w8a8_linear.md) | W8A8 linear 完整链路（per-token 量化 + INT8 GEMM + 融合反量化 + decode 用的 dp4a GEMV）：prefill 2.167x、decode HBM 区间 1.972x；三步分解显示量化只占 1.7%、反量化占 26.7%；权重布局值 3.6 倍；M>16 是库路径的硬约束。 |
+| [EXP-K07 采集主机 NCU 计数器闭环：分管线利用率、GEMM 对照口径核验、fused-norm L2 命题转实测](records/EXP-K07_ncu_counter_closure.md) | 在一台计数器可用的 RTX 4090 上补齐六个 C++ 算子的计数器采集：wmma 的 Tensor 管线利用率由编译期证据升为运行时实测（v1 0% → v2 25.71%）；gemm v4 与 cuBLAS 的性能比 77.9% 与两者 Tensor 管线利用率之比77.7% 吻合；fused-norm「第二次读不出片」证实（DRAM 读恒为算法下界 2.000×，向量化修复前 L1 命中率 83%；修复后复采见 EXP-K09）；补采 CUB 同算子对照。 |
 | [EXP-K08 BF16x8 向量化未兑现的定位与修复：从 alignas 到 union](records/EXP-K08_bf16x8_vectorization_fix.md) | 三个逐元素算子声称的 16 B 向量化在 SASS 层从未兑现——`alignas(16)` 只保证地址对齐、不强制向量化访存。修复 fused-norm 后 L2 常驻区间v3 +21.3%、v4 +41.8%（同环境 A/B，未改动的 v1/v2 对照组 +0.1%）；v4 由慢于 v3 反转为快于 v3。 |
 | [EXP-K09 向量化修复后的扇区账复采：守卫验证与「浪费比」判据](records/EXP-K09_post_vectorization_sector_ledger.md) | 向量化兑现后复采扇区账:L1TEX 请求精确降为原来的 1/4(16→4、12→3 ×S,正好等于 16 B/4 B),而 DRAM 读纹丝不动停在 2.000×S 的算法下界——可知修复前那版「向量化」在兑现之前是负优化,只是被 L1 全部吸收才在 DRAM 侧看不出来;并由 L1TEX/DRAM 浪费比给出「向量化有没有收益」的单向必要条件。 |
 
