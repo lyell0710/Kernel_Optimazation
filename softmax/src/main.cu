@@ -34,8 +34,13 @@ bool check_close(const std::vector<float>& a, const std::vector<float>& b, float
 
 int main()
 {
-    const int rows = 1024;
-    const int cols = 1024;
+    // 形状默认 1024x1024(工作集 8.4 MB, 常驻 4090 的 72 MB L2)。
+    // 可由 SOFTMAX_ROWS/SOFTMAX_COLS 覆盖,用于做 L2 常驻 vs HBM-bound 的区间对照
+    // ——形状写死正是"对外数字未标注 regime"的根源,见 EXP-K09 §5.9/§6.8。
+    int rows = 1024;
+    int cols = 1024;
+    if (const char* e = std::getenv("SOFTMAX_ROWS")) rows = std::atoi(e);
+    if (const char* e = std::getenv("SOFTMAX_COLS")) cols = std::atoi(e);
     const int n = rows * cols;
     int kBenchmarkIters = 100;
     if (const char* env_iters = std::getenv("BENCH_ITERS"))
