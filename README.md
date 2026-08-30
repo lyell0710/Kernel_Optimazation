@@ -162,6 +162,7 @@ bash scripts/run_ncu_all.sh
 | [EXP-K07 采集主机 NCU 计数器闭环：分管线利用率、GEMM 对照口径核验、fused-norm L2 命题转实测](records/EXP-K07_ncu_counter_closure.md) | 在一台计数器可用的 RTX 4090 上补齐六个 C++ 算子的计数器采集：wmma 的 Tensor 管线利用率由编译期证据升为运行时实测（v1 0% → v2 25.71%）；gemm v4 与 cuBLAS 的性能比 77.9%（该机 CUDA 12.8；主力机 13.2 下为 85.6%）与两者 Tensor 管线利用率之比77.7% 吻合；fused-norm「第二次读不出片」证实（DRAM 读恒为算法下界 2.000×，向量化修复前 L1 命中率 83%；修复后复采见 EXP-K09）；补采 CUB 同算子对照。 |
 | [EXP-K08 BF16x8 向量化未兑现的定位与修复：从 alignas 到 union](records/EXP-K08_bf16x8_vectorization_fix.md) | 三个逐元素算子声称的 16 B 向量化在 SASS 层从未兑现——`alignas(16)` 只保证地址对齐、不强制向量化访存。修复 fused-norm 后 L2 常驻区间v3 +21.3%、v4 +41.8%（同环境 A/B，未改动的 v1/v2 对照组 +0.1%）；v4 由慢于 v3 反转为快于 v3。 |
 | [EXP-K09 向量化修复后的扇区账复采：守卫验证与「浪费比」判据](records/EXP-K09_post_vectorization_sector_ledger.md) | 向量化兑现后复采扇区账:L1TEX 请求精确降为原来的 1/4(16→4、12→3 ×S,正好等于 16 B/4 B),而 DRAM 读纹丝不动停在 2.000×S 的算法下界——可知修复前那版「向量化」在兑现之前是负优化,只是被 L1 全部吸收才在 DRAM 侧看不出来;并由 L1TEX/DRAM 浪费比给出「向量化有没有收益」的单向必要条件。 |
+| [EXP-K10 gemm/fa2 v5 = mma PTX + ldmatrix + smem padding](records/EXP-K10_gemm_fa2_v5_mma_ptx.md) | 用 `mma.sync.m16n8k16` PTX + `ldmatrix` 重写 gemm 与 FA2 的 v4 微内核并消除 smem bank conflict:两者正确性全 PASS,性能均与 v4 持平(gemm 135.1±2.08 对 132.8±0.49 TFLOPS,差值仅 1.1 倍合并 std;FA2 35.0 对 34.8 TFLOPS)。「smem swizzle 能消除该瓶颈」这条推断由此在两个算子上同时被证伪——冲突波前占比高不等于它是性能瓶颈。 |
 
 ## 测量方法
 
