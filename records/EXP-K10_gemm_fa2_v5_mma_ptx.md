@@ -80,4 +80,5 @@ v4 用 wmma API，固定布局不暴露 smem 地址计算 → 无法 swizzle。v
 - **「swizzle 能消除该瓶颈」推断在 gemm 与 fa2 两侧都被证伪（端到端口径）**：ldmatrix/padding 已消 bank conflict，两仓性能均持平。LEDGER 红线表该条改写——bank conflict 波前占比高 ≠ 性能瓶颈（smem 带宽有富余，冲突被其他 stall 掩盖）。剩余差距在别处（gemm：多级流水/tile 形状/cp.async；fa2：相位链/barrier），非 swizzle 可解。
 - **计数器口径待采集机复验**：端到端持平已证伪「swizzle 是解法」，但「bank conflict 是否真被 ldmatrix/padding 消掉」需 NCU 的 `bank_conflicts`/`short_scoreboard` 实测。采集机已停机，指标攒着（LEDGER 采集清单不变）。
 - gemm/fa2 v5 代码（`gemm_v5.cu`、`fa2_v5.cu`）正确性 PASS、已接入 bench，保留。对外数字：gemm「cuBLAS 88.1%（CUDA 13.2）」、fa2 仍是「Triton 28%」（v5 持平 v4，未解锁「达到 sdpa/Triton 水平」）。
+  - **更正（落地时补）**：本条规定的对外数字 88.1% **不成立**。v5 135.1±2.08 对 v4 132.8±0.49，差值 +2.3 TFLOPS 对合并 σ≈2.14 仅 1.1 倍，3 轮内不可分辨；且 v5 的 std 由 0.49 涨到 2.08（方差翻四倍、均值未动）。按本仓「差值须超轮间 std」的既有判据，v5 不构成新基线。对外权威口径仍为 v4 的 **85.6%**（LEDGER 红线已据此回改）。本记录 §5 的实测数据与 §6② 的「持平」结论均正确，不动；只更正 §8 这条对外规定。
 - 调试临时文件（`debug_v5.cu`、`dump_ldmatrix.cu`、`mma_test.cu`、`debug_fa2_v5.cu`）不入库，删除。
